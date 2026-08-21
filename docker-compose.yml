@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tomhanks_app
+    restart: unless-stopped
+    ports:
+      - "${RESERVED_PORT:-3000}:3000"
+    environment:
+      - PORT=3000
+      - TMDB_API_KEY=${TMDB_API_KEY}
+      - DB_HOST=${DB_HOST:-mariadb}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER:-root}
+      - DB_PASSWORD=${DB_PASSWORD:-root_password}
+      - DB_NAME=${DB_NAME:-filmes_db}
+      - JWT_SECRET=${JWT_SECRET:-segredo_jwt_tomhanks_super_seguro_2026}
+    depends_on:
+      - mariadb
+
+  mariadb:
+    image: mariadb:10.11
+    container_name: tomhanks_mariadb
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root_password}
+      MYSQL_DATABASE: ${DB_NAME:-filmes_db}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "3306:3306"
+
+volumes:
+  mariadb_data:
