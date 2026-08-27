@@ -53,7 +53,6 @@ services:
       MYSQL_DATABASE: ${DB_NAME:-filmes_db}
     volumes:
       - mariadb_data:/var/lib/mysql
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
       - "3306:3306"
 
