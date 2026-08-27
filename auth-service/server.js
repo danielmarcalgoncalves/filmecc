@@ -5,7 +5,7 @@ const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 
 const app = express();
 app.use(cors());
@@ -111,7 +111,7 @@ app.post('/forgot-password', async (req, res) => {
     if (users.length === 0) return res.json({ message: 'Se o e-mail existir, um link de recuperação foi enviado.' });
 
     const usuario = users[0];
-    const token = uuidv4();
+    const token = crypto.randomBytes(20).toString('hex');
     const expiraEm = new Date(Date.now() + 30 * 60000); // 30 minutos
 
     await pool.query('INSERT INTO reset_tokens (token, usuario_id, expira_em) VALUES (?, ?, ?)', [token, usuario.id, expiraEm]);
