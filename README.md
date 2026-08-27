@@ -1,45 +1,48 @@
-# 🎬 Catálogo de Filmes — Tom Hanks
+# 🎬 Catálogo de Filmes — Tom Hanks (Atividade 3)
 
 Aplicação web completa para exploração da filmografia de **Tom Hanks**, com consumo ao vivo da API externa do **TMDB (The Movie Database)** e persistência individual de favoritos e comentários com **segregação de dados por usuário** no **MariaDB**.
+
+Agora com **Serviços Desacoplados**: a autenticação foi extraída para um microsserviço independente (comunicação apenas via rede Docker), incluindo funcionalidade de papéis de usuários (roles) e recuperação de senha por e-mail com expiração (via Mailtrap).
 
 > 🎓 Projeto desenvolvido para a disciplina de **Computação em Nuvem / Infraestrutura** lecionada pelo professor **@siriani**.
 
 ---
 
-## 🏛️ Arquitetura do Sistema
+## 🏛️ Arquitetura do Sistema (Serviços Desacoplados)
 
-A aplicação foi projetada seguindo rigorosamente o princípio de isolamento e segurança em três camadas fundamentais:
+A aplicação foi projetada com arquitetura de microsserviços, garantindo isolamento:
 
+```text
+Navegador (usuário final)
+        |
+    [ HTTPS ]
+        v
++-------------------------------------------------------+
+|  Catálogo (Backend Node.js)                           |
+|  - Único ponto público (Porta exposta)                |
+|  - Serve Frontend estático                            |
+|  - Proxy para Auth Service internamente               |
++-------------------------------------------------------+
+        |  (Rede Docker Interna)
+        +----------------------------> +--------------------------------+
+                                       | Auth Service (Sem porta pub.)  |
+                                       | - Login, Cadastro, Role        |
+                                       | - Esqueci-Senha (Mailtrap)     |
+                                       +--------------------------------+
+        |                                       |
+        v                                       v
++------------------------+             +--------------------------------+
+| MariaDB (db)           |             | Serviços Externos              |
+| - usuarios             |<------------+ - SMTP (Mailtrap)              |
+| - reset_tokens         |             | - API TMDB                     |
+| - favoritos            |             +--------------------------------+
++------------------------+
 ```
-+-------------------------------------------------------------------------------+
-|                               Navegador do Usuário                            |
-|  - Interface Moderna (React + Vite, Tema Dark Cinematográfico)                |
-|  - Telas: Login / Cadastro / Catálogo / Favoritos / Comentários / Modal       |
-|  - Nunca tem acesso a chaves da TMDB nem senhas de banco                      |
-+---------------------------------------+---------------------------------------+
-                                        | (Requisições HTTP com JWT)
-                                        v
-+-------------------------------------------------------------------------------+
-|                      Backend Node.js / Express (Porta Única)                  |
-|  - Serve a API REST e os arquivos estáticos do Frontend em produção           |
-|  - Autenticação JWT (bcrypt para hash de senhas)                              |
-|  - Middleware de autenticação: extrai e injeta `req.usuarioId`                |
-|  - Proxy TMDB: busca filmes ao vivo (chave protegida em variáveis de ambiente)|
-+-------------------+---------------------------------------+-------------------+
-                    |                                       |
-                    v                                       v
-+---------------------------------------+   +-----------------------------------+
-|               API TMDB                |   |          MariaDB do Aluno         |
-|  - GET /search/person?query=Tom+Hanks |   |  - Tabela: usuarios               |
-|  - GET /person/{id}/movie_credits     |   |  - Tabela: favoritos (usuario_id) |
-|  - Dados ao vivo, sem persistência    |   |  - Tabela: comentarios (usuario_id)|
-+---------------------------------------+   +-----------------------------------+
-```
 
-### As Três Camadas
-1. **Consumo de API (TMDB)**: As consultas à filmografia de Tom Hanks partem exclusivamente do servidor backend. A chave de API (`TMDB_API_KEY`) nunca é exposta no frontend. O catálogo é buscado ao vivo e nunca gravado no banco de dados.
-2. **Persistência (MariaDB)**: Apenas o que cada usuário decide favoritar ou comentar é gravado nas tabelas do banco de dados relacional.
-3. **Segregação de Usuários (Multi-tenant)**: Sistema próprio de cadastro e login. Senhas criptografadas com `bcryptjs` e sessões gerenciadas via token JWT. Toda e qualquer query SQL de favoritos ou comentários utiliza estritamente `WHERE usuario_id = ?`, garantindo isolamento total entre contas.
+### Componentes:
+1. **Catálogo (Público)**: O único serviço com porta mapeada. Ele repassa requisições de `/api/auth/*` para o serviço de autenticação via rede interna.
+2. **Serviço de Autenticação (Privado)**: Lida com geração de JWT, hash de senhas, roles e links de expiração por e-mail (Mailtrap). Não é acessível externamente.
+3. **Persistência (MariaDB)**: Apenas o que cada usuário decide favoritar ou comentar é gravado nas tabelas do banco de dados relacional.
 
 ---
 
@@ -96,11 +99,11 @@ Copie o arquivo `.env.example` para `.env` e preencha com as suas credenciais:
 PORT=3000
 RESERVED_PORT=3000
 
-# Chave da API TMDB (Obtida em themoviedb.org)
+# Chave da API TMDB
 TMDB_API_KEY=sua_chave_aqui
 
 # Conexão com o MariaDB
-DB_HOST=localhost
+DB_HOST=mariadb
 DB_PORT=3306
 DB_USER=root
 DB_PASSWORD=sua_senha
@@ -108,6 +111,10 @@ DB_NAME=filmes_db
 
 # Segredo para assinatura de Tokens JWT
 JWT_SECRET=seu_segredo_jwt_super_seguro
+
+# Configuração do Mailtrap (para auth-service)
+MAIL_USER=seu_user_do_mailtrap
+MAIL_PASS=sua_senha_do_mailtrap
 ```
 
 ---
