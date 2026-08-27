@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   app:
@@ -54,7 +53,7 @@ services:
     volumes:
       - mariadb_data:/var/lib/mysql
     ports:
-      - "3306:3306"
+      - "3307:3306"
 
 volumes:
   mariadb_data:
