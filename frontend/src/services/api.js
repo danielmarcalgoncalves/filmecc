@@ -87,6 +87,20 @@ export const api = {
       clearSession();
     },
 
+    async forgotPassword(email) {
+      return await apiRequest('/auth/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ email })
+      });
+    },
+
+    async resetPassword(token, novaSenha) {
+      return await apiRequest('/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ token, novaSenha })
+      });
+    },
+
     getToken,
     getStoredUser
   },

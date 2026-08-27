@@ -3,6 +3,7 @@ import Navbar from './components/Navbar';
 import AuthModal from './components/AuthModal';
 import MovieCard from './components/MovieCard';
 import MovieDetailModal from './components/MovieDetailModal';
+import ResetPasswordModal from './components/ResetPasswordModal';
 import Toast from './components/Toast';
 import { api } from './services/api';
 
@@ -19,6 +20,11 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('popularity'); // 'popularity' | 'rating' | 'year_desc' | 'year_asc' | 'title_asc'
   const [selectedMovie, setSelectedMovie] = useState(null);
+
+  // Recuperação de senha
+  const [resetToken, setResetToken] = useState(() => {
+    return new URLSearchParams(window.location.search).get('token');
+  });
 
   // Toast
   const [toast, setToast] = useState(null);
@@ -169,7 +175,25 @@ export default function App() {
     return result;
   }, [movies, activeTab, searchQuery, sortBy, favoriteMovieIds, commentsCountByMovie]);
 
-  // Se não estiver autenticado, exibe a tela de login/cadastro
+  // Se houver um token na URL, mostra a tela de redefinir senha
+  if (resetToken && !user) {
+    return (
+      <>
+        <ResetPasswordModal 
+          token={resetToken} 
+          onSuccess={() => {
+            // Remove o token da URL e do estado
+            window.history.replaceState({}, document.title, window.location.pathname);
+            setResetToken(null);
+          }} 
+          onShowToast={showToast} 
+        />
+        <Toast toast={toast} onClose={() => setToast(null)} />
+      </>
+    );
+  }
+
+  // Se não estiver autenticado e não tiver token, exibe a tela de login/cadastro
   if (!user) {
     return (
       <>

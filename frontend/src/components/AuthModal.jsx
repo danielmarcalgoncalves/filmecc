@@ -19,13 +19,17 @@ export default function AuthModal({ onAuthSuccess, onShowToast }) {
         const data = await api.auth.login(email, senha);
         onShowToast(`Bem-vindo de volta, ${data.usuario.nome}!`, 'success');
         onAuthSuccess(data.usuario);
-      } else {
+      } else if (tab === 'register') {
         if (!nome.trim()) {
           throw new Error('Por favor, informe o seu nome.');
         }
         const data = await api.auth.register(nome, email, senha);
         onShowToast(`Conta criada com sucesso! Olá, ${data.usuario.nome}!`, 'success');
         onAuthSuccess(data.usuario);
+      } else if (tab === 'forgot') {
+        const data = await api.auth.forgotPassword(email);
+        onShowToast(data.message || 'Se o e-mail existir, um link de recuperação foi enviado.', 'success');
+        setTab('login'); // volta pro login após pedir o link
       }
     } catch (err) {
       setError(err.message || 'Ocorreu um erro na autenticação.');
@@ -49,7 +53,7 @@ export default function AuthModal({ onAuthSuccess, onShowToast }) {
           </p>
         </div>
 
-        <div className="auth-tabs">
+        <div className="auth-tabs" style={{ display: tab === 'forgot' ? 'none' : 'flex' }}>
           <button
             type="button"
             className={`auth-tab-btn ${tab === 'login' ? 'active' : ''}`}
@@ -65,6 +69,12 @@ export default function AuthModal({ onAuthSuccess, onShowToast }) {
             Criar Conta
           </button>
         </div>
+
+        {tab === 'forgot' && (
+          <div style={{ textAlign: 'center', marginBottom: '1rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+            Digite seu e-mail cadastrado para receber um link de recuperação.
+          </div>
+        )}
 
         {error && (
           <div className="alert-error">
@@ -94,7 +104,18 @@ export default function AuthModal({ onAuthSuccess, onShowToast }) {
           )}
 
           <div className="form-group">
-            <label className="form-label" htmlFor="input-email">E-mail</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label className="form-label" htmlFor="input-email">E-mail</label>
+              {tab === 'login' && (
+                <button 
+                  type="button" 
+                  onClick={() => { setTab('forgot'); setError(null); }} 
+                  style={{ background: 'none', border: 'none', color: 'var(--accent-blue)', fontSize: '0.8rem', cursor: 'pointer' }}
+                >
+                  Esqueci minha senha
+                </button>
+              )}
+            </div>
             <input
               id="input-email"
               type="email"
@@ -106,22 +127,37 @@ export default function AuthModal({ onAuthSuccess, onShowToast }) {
             />
           </div>
 
-          <div className="form-group">
-            <label className="form-label" htmlFor="input-senha">Senha</label>
-            <input
-              id="input-senha"
-              type="password"
-              className="form-input"
-              placeholder="Mínimo 4 caracteres"
-              value={senha}
-              onChange={(e) => setSenha(e.target.value)}
-              required
-            />
-          </div>
+          {tab !== 'forgot' && (
+            <div className="form-group">
+              <label className="form-label" htmlFor="input-senha">Senha</label>
+              <input
+                id="input-senha"
+                type="password"
+                className="form-input"
+                placeholder="Mínimo 4 caracteres"
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                required
+              />
+            </div>
+          )}
 
           <button type="submit" className="btn-auth-submit" disabled={loading}>
-            {loading ? 'Aguarde...' : tab === 'login' ? 'Entrar no Catálogo' : 'Cadastrar e Acessar'}
+            {loading ? 'Aguarde...' : tab === 'login' ? 'Entrar no Catálogo' : tab === 'register' ? 'Cadastrar e Acessar' : 'Enviar Link de Recuperação'}
           </button>
+          
+          {tab === 'forgot' && (
+            <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+              <button 
+                type="button" 
+                className="auth-tab-btn" 
+                style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}
+                onClick={() => { setTab('login'); setError(null); }}
+              >
+                Voltar para o Login
+              </button>
+            </div>
+          )}
         </form>
 
         <div className="auth-footer-note">
