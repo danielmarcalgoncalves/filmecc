@@ -45,6 +45,14 @@ async function initDb() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
+    // Tentar adicionar a coluna papel caso o banco antigo não tenha
+    try {
+      await connection.query(`ALTER TABLE usuarios ADD COLUMN papel VARCHAR(50) DEFAULT 'usuario';`);
+      console.log('[Database] Coluna papel adicionada na tabela usuarios.');
+    } catch (e) {
+      // Ignorar se a coluna já existir (ER_DUP_FIELDNAME)
+    }
+
     // Criação da tabela de favoritos com chave única por (usuario_id, tmdb_movie_id)
     await connection.query(`
       CREATE TABLE IF NOT EXISTS favoritos (
