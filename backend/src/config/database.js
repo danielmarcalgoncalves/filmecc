@@ -28,7 +28,20 @@ async function initDb() {
         nome VARCHAR(100) NOT NULL,
         email VARCHAR(150) UNIQUE NOT NULL,
         senha_hash VARCHAR(255) NOT NULL,
+        papel VARCHAR(50) DEFAULT 'usuario',
         criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // Criação da tabela de reset_tokens
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS reset_tokens (
+        token VARCHAR(255) PRIMARY KEY,
+        usuario_id INT NOT NULL,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expira_em TIMESTAMP NOT NULL,
+        usado BOOLEAN DEFAULT FALSE,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
