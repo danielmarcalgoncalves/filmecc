@@ -36,10 +36,12 @@ services:
       - DB_PASSWORD=${DB_PASSWORD:-root_password}
       - DB_NAME=${DB_NAME:-filmes_db}
       - JWT_SECRET=${JWT_SECRET:-segredo_jwt_tomhanks_super_seguro_2026}
-      - MAIL_HOST=sandbox.smtp.mailtrap.io
-      - MAIL_PORT=2525
-      - MAIL_USER=${MAIL_USER:-fake_user}
-      - MAIL_PASS=${MAIL_PASS:-fake_pass}
+      - MAIL_HOST=${MAIL_HOST:-smtp-relay.brevo.com}
+      - MAIL_PORT=${MAIL_PORT:-587}
+      - MAIL_USER=${MAIL_USER}
+      - MAIL_PASS=${MAIL_PASS}
+      - MAIL_FROM=${MAIL_FROM}
+      - APP_URL=${APP_URL}
     depends_on:
       - mariadb
 
