@@ -61,10 +61,10 @@ async function apiRequest(endpoint, options = {}) {
 
 export const api = {
   auth: {
-    async register(nome, email, senha, papel = 'usuario') {
+    async register(nome, email, senha) {
       const data = await apiRequest('/auth/register', {
         method: 'POST',
-        body: JSON.stringify({ nome, email, senha, papel })
+        body: JSON.stringify({ nome, email, senha })
       });
       setSession(data.token, data.usuario);
       return data;

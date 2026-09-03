@@ -49,13 +49,15 @@ const authMiddleware = (req, res, next) => {
 
 app.post('/register', async (req, res) => {
   try {
-    const { nome, email, senha, papel } = req.body;
+    const { nome, email, senha } = req.body;
     if (!nome || !email || !senha) return res.status(400).json({ error: 'Nome, e-mail e senha obrigatórios.' });
     if (senha.length < 4) return res.status(400).json({ error: 'Senha deve ter min 4 chars.' });
 
-    // Permite definir papel no cadastro se for válido, caso contrário padrão é 'usuario'
-    const papeisValidos = ['usuario', 'premium', 'admin'];
-    const papelFinal = papeisValidos.includes(papel) ? papel : 'usuario';
+    // Blindagem rigorosa de segurança:
+    // Qualquer parâmetro 'papel' enviado pelo cliente é estritamente ignorado.
+    // Todo novo registro é obrigatoriamente criado como usuário comum ('usuario').
+    // Papéis privilegiados ('premium', 'admin') só podem ser concedidos por administradores no banco.
+    const papelFinal = 'usuario';
 
     const emailTrimmed = email.trim().toLowerCase();
     const [existing] = await pool.query('SELECT id FROM usuarios WHERE email = ?', [emailTrimmed]);

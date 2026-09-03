@@ -4,7 +4,16 @@ const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://auth-service:30
 
 async function register(req, res) {
   try {
-    const response = await axios.post(`${AUTH_SERVICE_URL}/register`, req.body);
+    const { nome, email, senha } = req.body;
+    // Blindagem de segurança: qualquer campo 'papel' enviado pelo cliente é completamente descartado.
+    // Todo novo registro no sistema é estritamente forçado como 'usuario' comum.
+    const safePayload = {
+      nome,
+      email,
+      senha,
+      papel: 'usuario'
+    };
+    const response = await axios.post(`${AUTH_SERVICE_URL}/register`, safePayload);
     return res.status(response.status).json(response.data);
   } catch (error) {
     if (error.response) {
