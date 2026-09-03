@@ -31,6 +31,17 @@ export default function App() {
   // Toast
   const [toast, setToast] = useState(null);
 
+  // Barra de controles sticky ao rolar
+  const [isControlsSticky, setIsControlsSticky] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsControlsSticky(window.scrollY > 150);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
   };
@@ -237,7 +248,7 @@ export default function App() {
           </section>
 
         {/* CONTROLES, ABAS E BUSCA */}
-        <section className="controls-container">
+        <section className={`controls-container ${isControlsSticky ? 'is-sticky' : ''}`}>
           <div className="controls-row">
             <div className="filter-tabs">
               <button

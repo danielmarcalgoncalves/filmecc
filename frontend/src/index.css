@@ -251,6 +251,9 @@ h1, h2, h3, h4, .brand-title {
 
 /* FILTROS E BARRA DE PESQUISA */
 .controls-container {
+  position: sticky;
+  top: 68px;
+  z-index: 40;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -260,6 +263,52 @@ h1, h2, h3, h4, .brand-title {
   border-radius: var(--radius-lg);
   padding: 1.25rem;
   backdrop-filter: blur(12px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Efeito compacto quando rola a página */
+.controls-container.is-sticky {
+  padding: 0.55rem 1rem;
+  background: rgba(13, 17, 26, 0.92);
+  backdrop-filter: blur(20px);
+  border-color: rgba(245, 158, 11, 0.25);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  margin-bottom: 1.5rem;
+}
+
+.controls-container.is-sticky .controls-row {
+  gap: 0.65rem;
+}
+
+.controls-container.is-sticky .filter-tabs {
+  padding: 0.2rem;
+}
+
+.controls-container.is-sticky .tab-btn {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  gap: 0.4rem;
+}
+
+.controls-container.is-sticky .tab-count {
+  padding: 0.05rem 0.35rem;
+  font-size: 0.7rem;
+}
+
+.controls-container.is-sticky .search-and-sort {
+  gap: 0.5rem;
+  max-width: 520px;
+}
+
+.controls-container.is-sticky .search-input {
+  padding: 0.4rem 0.8rem 0.4rem 2.2rem;
+  font-size: 0.82rem;
+}
+
+.controls-container.is-sticky .sort-select {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.82rem;
 }
 
 .controls-row {
@@ -268,6 +317,7 @@ h1, h2, h3, h4, .brand-title {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  transition: gap 0.25s ease;
 }
 
 .filter-tabs {
@@ -1083,6 +1133,14 @@ h1, h2, h3, h4, .brand-title {
 @media (max-width: 768px) {
   .hero-title {
     font-size: 1.85rem;
+  }
+
+  .controls-container {
+    top: 64px;
+  }
+
+  .controls-container.is-sticky {
+    padding: 0.5rem 0.75rem;
   }
 
   .controls-row {
