@@ -26,7 +26,8 @@ const pool = mysql.createPool({
 
 const transporter = nodemailer.createTransport({
   host: process.env.MAIL_HOST || "sandbox.smtp.mailtrap.io",
-  port: process.env.MAIL_PORT || 2525,
+  port: parseInt(process.env.MAIL_PORT, 10) || 587,
+  secure: process.env.MAIL_PORT == 465, // true para SSL 465, false para TLS 587
   auth: {
     user: process.env.MAIL_USER || "fake_user",
     pass: process.env.MAIL_PASS || "fake_pass"
@@ -166,13 +167,28 @@ app.post('/forgot-password', async (req, res) => {
 
     await pool.query('INSERT INTO reset_tokens (token, usuario_id, expira_em) VALUES (?, ?, ?)', [token, usuario.id, expiraEm]);
 
-    const resetLink = `http://localhost:3000/reset-password?token=${token}`;
+    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    const resetLink = `${appUrl}/?token=${token}`;
+    const mailSender = process.env.MAIL_FROM || `"Catálogo Tom Hanks" <${process.env.MAIL_USER}>`;
 
     await transporter.sendMail({
-      from: '"Catálogo Tom Hanks" <noreply@tomhanks.com>',
+      from: mailSender,
       to: email,
-      subject: 'Recuperação de Senha',
-      html: `<p>Olá ${usuario.nome},</p><p>Clique no link para redefinir sua senha: <a href="${resetLink}">Redefinir Senha</a></p><p>O link expira em 30 minutos.</p>`
+      subject: 'Recuperação de Senha - Catálogo Tom Hanks',
+      html: `
+        <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff; color: #1e293b;">
+          <h2 style="color: #d97706; margin-top: 0;">Recuperação de Senha</h2>
+          <p>Olá <strong>${usuario.nome}</strong>,</p>
+          <p>Você solicitou a redefinição de senha da sua conta no <strong>Catálogo de Filmes Tom Hanks</strong>.</p>
+          <p style="margin: 24px 0;">
+            <a href="${resetLink}" style="background-color: #f59e0b; color: #0f172a; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+              Redefinir Minha Senha
+            </a>
+          </p>
+          <p style="color: #64748b; font-size: 0.85rem;">Ou copie e cole o link no seu navegador:<br><a href="${resetLink}" style="color: #3b82f6;">${resetLink}</a></p>
+          <p style="color: #94a3b8; font-size: 0.8rem; margin-top: 20px;">Este link expira em 30 minutos. Se você não solicitou, pode ignorar esta mensagem.</p>
+        </div>
+      `
     });
 
     res.json({ message: 'Se o e-mail existir, um link de recuperação foi enviado.' });
