@@ -18,11 +18,14 @@ export default function Navbar({ user, onLogout }) {
 
         <div className="nav-actions">
           {user && (
-            <div className="user-badge" title={`Logado como: ${user.email}`}>
+            <div className="user-badge" title={`Logado como: ${user.email} (${user.papel || 'usuario'})`}>
               <div className="user-avatar">
                 {user.nome ? user.nome.charAt(0).toUpperCase() : 'U'}
               </div>
               <span style={{ fontWeight: 600 }}>{user.nome}</span>
+              <span className={`role-badge role-${user.papel || 'usuario'}`}>
+                {user.papel === 'admin' ? '🛡️ Admin' : user.papel === 'premium' ? '⭐ Premium' : '👤 Usuário'}
+              </span>
             </div>
           )}
 

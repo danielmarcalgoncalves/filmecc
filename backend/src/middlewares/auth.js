@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'tom_hanks_segredo_jwt_seguranca_2026';
+const JWT_SECRET = process.env.JWT_SECRET || 'segredo_jwt_tomhanks_super_seguro_2026';
 
 function authMiddleware(req, res, next) {
   const authHeader = req.headers['authorization'];
@@ -22,12 +22,14 @@ function authMiddleware(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    // Vincula estritamente o usuarioId ao request
+    // Vincula estritamente o usuarioId e o papel (role) ao request
     req.usuarioId = decoded.id;
+    req.usuarioPapel = decoded.papel || 'usuario';
     req.usuario = {
       id: decoded.id,
       nome: decoded.nome,
-      email: decoded.email
+      email: decoded.email,
+      papel: decoded.papel || 'usuario'
     };
     next();
   } catch (error) {
@@ -37,4 +39,32 @@ function authMiddleware(req, res, next) {
   }
 }
 
-module.exports = authMiddleware;
+/**
+ * Middleware RBAC: Valida se o papel do usuário autenticado tem autorização para o endpoint.
+ * Retorna 403 Forbidden caso o papel não seja permitido.
+ * @param  {...string} papeisPermitidos - Lista de papéis autorizados (ex: 'admin', 'premium')
+ */
+function requireRole(...papeisPermitidos) {
+  return (req, res, next) => {
+    const papelUsuario = req.usuarioPapel || (req.usuario && req.usuario.papel);
+    if (!papelUsuario || !papeisPermitidos.includes(papelUsuario)) {
+      return res.status(403).json({
+        error: 'Acesso proibido (403 Forbidden). Seu papel de usuário não possui permissão para realizar esta ação sensível.',
+        papelAtual: papelUsuario || 'desconhecido',
+        papeisPermitidos
+      });
+    }
+    next();
+  };
+}
+
+const requireAdmin = requireRole('admin');
+const requirePremiumOrAdmin = requireRole('premium', 'admin');
+
+module.exports = {
+  authMiddleware,
+  requireRole,
+  requireAdmin,
+  requirePremiumOrAdmin
+};
+

@@ -8,4 +8,9 @@ router.get('/me', authController.me);
 router.post('/forgot-password', authController.forgotPassword);
 router.post('/reset-password', authController.resetPassword);
 
+// Rotas de administração de usuários (RBAC - checagem de papel)
+router.get('/users', authController.listUsers);
+router.patch('/users/:id/role', authController.updateUserRole);
+
 module.exports = router;
+

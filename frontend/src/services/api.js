@@ -61,10 +61,10 @@ async function apiRequest(endpoint, options = {}) {
 
 export const api = {
   auth: {
-    async register(nome, email, senha) {
+    async register(nome, email, senha, papel = 'usuario') {
       const data = await apiRequest('/auth/register', {
         method: 'POST',
-        body: JSON.stringify({ nome, email, senha })
+        body: JSON.stringify({ nome, email, senha, papel })
       });
       setSession(data.token, data.usuario);
       return data;
@@ -150,6 +150,27 @@ export const api = {
       return await apiRequest(`/comments/${commentId}`, {
         method: 'DELETE'
       });
+    },
+
+    // Ação exclusiva de Admin (RBAC): Moderação de qualquer comentário
+    async deleteAny(commentId) {
+      return await apiRequest(`/comments/admin/${commentId}`, {
+        method: 'DELETE'
+      });
+    }
+  },
+
+  admin: {
+    async listUsers() {
+      return await apiRequest('/auth/users');
+    },
+
+    async updateUserRole(userId, papel) {
+      return await apiRequest(`/auth/users/${userId}/role`, {
+        method: 'PATCH',
+        body: JSON.stringify({ papel })
+      });
     }
   }
 };
+

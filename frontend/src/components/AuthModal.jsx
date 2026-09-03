@@ -6,6 +6,7 @@ export default function AuthModal({ onAuthSuccess, onShowToast }) {
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
+  const [papel, setPapel] = useState('usuario');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -23,8 +24,8 @@ export default function AuthModal({ onAuthSuccess, onShowToast }) {
         if (!nome.trim()) {
           throw new Error('Por favor, informe o seu nome.');
         }
-        const data = await api.auth.register(nome, email, senha);
-        onShowToast(`Conta criada com sucesso! Olá, ${data.usuario.nome}!`, 'success');
+        const data = await api.auth.register(nome, email, senha, papel);
+        onShowToast(`Conta criada com sucesso (${data.usuario.papel})! Olá, ${data.usuario.nome}!`, 'success');
         onAuthSuccess(data.usuario);
       } else if (tab === 'forgot') {
         const data = await api.auth.forgotPassword(email);
@@ -139,6 +140,28 @@ export default function AuthModal({ onAuthSuccess, onShowToast }) {
                 onChange={(e) => setSenha(e.target.value)}
                 required
               />
+            </div>
+          )}
+
+          {tab === 'register' && (
+            <div className="form-group">
+              <label className="form-label" htmlFor="select-papel">
+                Papel do Usuário (RBAC)
+              </label>
+              <select
+                id="select-papel"
+                className="form-input"
+                value={papel}
+                onChange={(e) => setPapel(e.target.value)}
+                style={{ background: 'var(--bg-surface-elevated)', cursor: 'pointer' }}
+              >
+                <option value="usuario">👤 Usuário Comum (Até 5 favoritos, comentários próprios)</option>
+                <option value="premium">⭐ Usuário Premium (Favoritos ilimitados, comentários)</option>
+                <option value="admin">🛡️ Administrador (Favoritos ilimitados, moderação geral de comentários)</option>
+              </select>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.3rem', display: 'block' }}>
+                💡 Escolha o perfil para testar as permissões e o enforcement do servidor (RBAC).
+              </span>
             </div>
           )}
 

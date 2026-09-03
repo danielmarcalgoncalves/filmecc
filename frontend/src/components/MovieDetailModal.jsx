@@ -55,10 +55,25 @@ export default function MovieDetailModal({
     try {
       await api.comments.delete(commentId);
       setComments((prev) => prev.filter((c) => c.id !== commentId));
-      onShowToast('Comentário removido.', 'success');
+      onShowToast('Seu comentário foi removido.', 'success');
       if (onCommentChanged) onCommentChanged();
     } catch (err) {
       onShowToast(err.message || 'Erro ao remover comentário.', 'error');
+    }
+  };
+
+  // Ação exclusiva de Admin (Moderação RBAC)
+  const handleAdminModerateComment = async (commentId, autorNome) => {
+    if (!window.confirm(`[MODERAÇÃO ADMIN]\nTem certeza que deseja apagar o comentário de "${autorNome || 'outro usuário'}"? Esta é uma ação restrita a administradores.`)) {
+      return;
+    }
+    try {
+      await api.comments.deleteAny(commentId);
+      setComments((prev) => prev.filter((c) => c.id !== commentId));
+      onShowToast('Comentário moderado e removido com sucesso pela administração (Admin RBAC)!', 'success');
+      if (onCommentChanged) onCommentChanged();
+    } catch (err) {
+      onShowToast(err.message || 'Erro de permissão ao moderar comentário.', 'error');
     }
   };
 
@@ -175,40 +190,68 @@ export default function MovieDetailModal({
                   Você ainda não escreveu comentários para este filme. Deixe sua primeira anotação acima!
                 </div>
               ) : (
-                comments.map((c) => (
-                  <div key={c.id} className="comment-item">
-                    <div className="comment-item-header">
-                      <div className="comment-user-info">
-                        <div className="user-avatar" style={{ width: '18px', height: '18px', fontSize: '0.65rem' }}>
-                          {user?.nome ? user.nome.charAt(0).toUpperCase() : 'U'}
+                comments.map((c) => {
+                  const isAuthor = user?.id === c.usuario_id;
+                  const isAdmin = user?.papel === 'admin';
+                  const autorNome = c.autor_nome || (isAuthor ? user?.nome : 'Usuário');
+                  const autorPapel = c.autor_papel || (isAuthor ? user?.papel : 'usuario');
+
+                  return (
+                    <div key={c.id} className="comment-item">
+                      <div className="comment-item-header">
+                        <div className="comment-user-info">
+                          <div className="user-avatar" style={{ width: '20px', height: '20px', fontSize: '0.7rem' }}>
+                            {autorNome ? autorNome.charAt(0).toUpperCase() : 'U'}
+                          </div>
+                          <span style={{ fontWeight: 600 }}>{autorNome}</span>
+                          <span className={`role-badge-mini role-${autorPapel}`}>
+                            {autorPapel === 'admin' ? 'Admin' : autorPapel === 'premium' ? 'Premium' : 'Usuário'}
+                          </span>
                         </div>
-                        <span>{user?.nome}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                          <span className="comment-date">
+                            {new Date(c.criado_em).toLocaleDateString('pt-BR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+
+                          {/* Se for o próprio autor: botão normal de apagar */}
+                          {isAuthor && (
+                            <button
+                              className="btn-del-comment"
+                              onClick={() => handleDeleteComment(c.id)}
+                              title="Remover meu comentário"
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                              </svg>
+                            </button>
+                          )}
+
+                          {/* Se NÃO for o autor, mas for ADMIN: Botão exclusivo de Moderação RBAC */}
+                          {!isAuthor && isAdmin && (
+                            <button
+                              className="btn-admin-moderate"
+                              onClick={() => handleAdminModerateComment(c.id, autorNome)}
+                              title="[Ação de Admin] Moderar e apagar comentário deste usuário"
+                            >
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                              </svg>
+                              <span>Moderar</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                        <span className="comment-date">
-                          {new Date(c.criado_em).toLocaleDateString('pt-BR', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </span>
-                        <button
-                          className="btn-del-comment"
-                          onClick={() => handleDeleteComment(c.id)}
-                          title="Remover este comentário"
-                        >
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <polyline points="3 6 5 6 21 6"></polyline>
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                          </svg>
-                        </button>
-                      </div>
+                      <div className="comment-text">{c.texto}</div>
                     </div>
-                    <div className="comment-text">{c.texto}</div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>

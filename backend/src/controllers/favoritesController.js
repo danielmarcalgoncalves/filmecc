@@ -32,6 +32,32 @@ async function addFavorite(req, res) {
       return res.status(400).json({ error: 'tmdb_movie_id e titulo são obrigatórios.' });
     }
 
+    const papelUsuario = req.usuarioPapel || 'usuario';
+
+    // Regra RBAC para Usuário Comum: limite máximo de 5 favoritos
+    // Usuários Premium e Admin possuem favoritos ilimitados
+    if (papelUsuario === 'usuario') {
+      const [favCountRows] = await pool.query(
+        'SELECT COUNT(*) as total FROM favoritos WHERE usuario_id = ?',
+        [usuarioId]
+      );
+      const totalFavoritos = favCountRows[0].total;
+
+      // Se já possui 5 e está tentando adicionar um novo filme que ainda não está favoritado
+      const [alreadyFav] = await pool.query(
+        'SELECT id FROM favoritos WHERE usuario_id = ? AND tmdb_movie_id = ?',
+        [usuarioId, tmdb_movie_id]
+      );
+
+      if (totalFavoritos >= 5 && alreadyFav.length === 0) {
+        return res.status(403).json({
+          error: 'Limite de 5 favoritos atingido para o plano Usuário Comum. Faça upgrade para o plano Premium para favoritar filmes ilimitados!',
+          papelAtual: papelUsuario,
+          limite: 5
+        });
+      }
+    }
+
     // Insere garantindo que não duplicará (UNIQUE KEY usuario_id, tmdb_movie_id)
     await pool.query(
       `INSERT INTO favoritos (usuario_id, tmdb_movie_id, titulo, poster_path)

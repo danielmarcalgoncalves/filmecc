@@ -66,10 +66,45 @@ async function resetPassword(req, res) {
   }
 }
 
+async function listUsers(req, res) {
+  try {
+    const response = await axios.get(`${AUTH_SERVICE_URL}/users`, {
+      headers: {
+        Authorization: req.headers.authorization
+      }
+    });
+    return res.status(response.status).json(response.data);
+  } catch (error) {
+    if (error.response) {
+      return res.status(error.response.status).json(error.response.data);
+    }
+    return res.status(500).json({ error: 'Erro interno ao contatar o serviço de autenticação.' });
+  }
+}
+
+async function updateUserRole(req, res) {
+  try {
+    const response = await axios.patch(`${AUTH_SERVICE_URL}/users/${req.params.id}/role`, req.body, {
+      headers: {
+        Authorization: req.headers.authorization
+      }
+    });
+    return res.status(response.status).json(response.data);
+  } catch (error) {
+    if (error.response) {
+      return res.status(error.response.status).json(error.response.data);
+    }
+    return res.status(500).json({ error: 'Erro interno ao contatar o serviço de autenticação.' });
+  }
+}
+
 module.exports = {
   register,
   login,
   me,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  listUsers,
+  updateUserRole
 };
+

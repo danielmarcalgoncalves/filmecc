@@ -49,9 +49,13 @@ const authMiddleware = (req, res, next) => {
 
 app.post('/register', async (req, res) => {
   try {
-    const { nome, email, senha } = req.body;
+    const { nome, email, senha, papel } = req.body;
     if (!nome || !email || !senha) return res.status(400).json({ error: 'Nome, e-mail e senha obrigatórios.' });
     if (senha.length < 4) return res.status(400).json({ error: 'Senha deve ter min 4 chars.' });
+
+    // Permite definir papel no cadastro se for válido, caso contrário padrão é 'usuario'
+    const papeisValidos = ['usuario', 'premium', 'admin'];
+    const papelFinal = papeisValidos.includes(papel) ? papel : 'usuario';
 
     const emailTrimmed = email.trim().toLowerCase();
     const [existing] = await pool.query('SELECT id FROM usuarios WHERE email = ?', [emailTrimmed]);
@@ -60,11 +64,11 @@ app.post('/register', async (req, res) => {
     const senhaHash = await bcrypt.hash(senha, 10);
     const [result] = await pool.query(
       'INSERT INTO usuarios (nome, email, senha_hash, papel) VALUES (?, ?, ?, ?)',
-      [nome.trim(), emailTrimmed, senhaHash, 'usuario']
+      [nome.trim(), emailTrimmed, senhaHash, papelFinal]
     );
 
-    const token = jwt.sign({ id: result.insertId, nome: nome.trim(), email: emailTrimmed, papel: 'usuario' }, JWT_SECRET, { expiresIn: '7d' });
-    res.status(201).json({ message: 'Conta criada!', token, usuario: { id: result.insertId, nome: nome.trim(), email: emailTrimmed, papel: 'usuario' } });
+    const token = jwt.sign({ id: result.insertId, nome: nome.trim(), email: emailTrimmed, papel: papelFinal }, JWT_SECRET, { expiresIn: '7d' });
+    res.status(201).json({ message: 'Conta criada!', token, usuario: { id: result.insertId, nome: nome.trim(), email: emailTrimmed, papel: papelFinal } });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Erro interno.' });
@@ -84,8 +88,8 @@ app.post('/login', async (req, res) => {
     const senhaValida = await bcrypt.compare(senha, usuario.senha_hash);
     if (!senhaValida) return res.status(401).json({ error: 'Credenciais inválidas.' });
 
-    const token = jwt.sign({ id: usuario.id, nome: usuario.nome, email: usuario.email, papel: usuario.papel }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ message: 'Login ok!', token, usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, papel: usuario.papel } });
+    const token = jwt.sign({ id: usuario.id, nome: usuario.nome, email: usuario.email, papel: usuario.papel || 'usuario' }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ message: 'Login ok!', token, usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, papel: usuario.papel || 'usuario' } });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Erro interno.' });
@@ -99,6 +103,50 @@ app.get('/me', authMiddleware, async (req, res) => {
     res.json({ usuario: users[0] });
   } catch (error) {
     res.status(500).json({ error: 'Erro interno.' });
+  }
+});
+
+// Endpoint exclusivo de administração: Listar todos os usuários (RBAC Admin)
+app.get('/users', authMiddleware, async (req, res) => {
+  try {
+    const [currentUser] = await pool.query('SELECT papel FROM usuarios WHERE id = ?', [req.usuarioId]);
+    if (currentUser.length === 0 || currentUser[0].papel !== 'admin') {
+      return res.status(403).json({ error: 'Acesso proibido (403 Forbidden). Apenas administradores podem listar usuários.' });
+    }
+
+    const [users] = await pool.query('SELECT id, nome, email, papel, criado_em FROM usuarios ORDER BY criado_em DESC');
+    res.json({ usuarios: users });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Erro interno ao listar usuários.' });
+  }
+});
+
+// Endpoint exclusivo de administração: Alterar papel/role de um usuário (promover/rebaixar)
+app.patch('/users/:id/role', authMiddleware, async (req, res) => {
+  try {
+    const [currentUser] = await pool.query('SELECT papel FROM usuarios WHERE id = ?', [req.usuarioId]);
+    if (currentUser.length === 0 || currentUser[0].papel !== 'admin') {
+      return res.status(403).json({ error: 'Acesso proibido (403 Forbidden). Apenas administradores podem alterar papéis.' });
+    }
+
+    const targetId = req.params.id;
+    const { papel } = req.body;
+    const papeisValidos = ['usuario', 'premium', 'admin'];
+
+    if (!papeisValidos.includes(papel)) {
+      return res.status(400).json({ error: `Papel inválido. Opções válidas: ${papeisValidos.join(', ')}` });
+    }
+
+    const [result] = await pool.query('UPDATE usuarios SET papel = ? WHERE id = ?', [papel, targetId]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado.' });
+    }
+
+    res.json({ message: `Papel do usuário ${targetId} alterado com sucesso para "${papel}".` });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Erro interno ao alterar papel do usuário.' });
   }
 });
 
@@ -170,3 +218,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Auth-service rodando na porta ${PORT}`);
 });
+
