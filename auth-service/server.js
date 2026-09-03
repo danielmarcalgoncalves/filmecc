@@ -25,12 +25,15 @@ const pool = mysql.createPool({
 });
 
 const transporter = nodemailer.createTransport({
-  host: process.env.MAIL_HOST || "sandbox.smtp.mailtrap.io",
+  host: process.env.MAIL_HOST || "smtp-relay.brevo.com",
   port: parseInt(process.env.MAIL_PORT, 10) || 587,
   secure: process.env.MAIL_PORT == 465, // true para SSL 465, false para TLS 587
   auth: {
     user: process.env.MAIL_USER || "fake_user",
     pass: process.env.MAIL_PASS || "fake_pass"
+  },
+  tls: {
+    rejectUnauthorized: false
   }
 });
 
@@ -193,8 +196,8 @@ app.post('/forgot-password', async (req, res) => {
 
     res.json({ message: 'Se o e-mail existir, um link de recuperação foi enviado.' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Erro interno.' });
+    console.error('[FORGOT-PASSWORD ERROR]:', error);
+    res.status(500).json({ error: `Falha ao enviar e-mail: ${error.message || 'Erro interno.'}` });
   }
 });
 
