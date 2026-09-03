@@ -53,6 +53,29 @@ async function initDb() {
       // Ignorar se a coluna já existir (ER_DUP_FIELDNAME)
     }
 
+    // Tentar adicionar a coluna email_verificado
+    try {
+      await connection.query(`ALTER TABLE usuarios ADD COLUMN email_verificado BOOLEAN DEFAULT FALSE;`);
+      // Garante que contas pré-existentes não sejam bloqueadas
+      await connection.query(`UPDATE usuarios SET email_verificado = TRUE WHERE email_verificado IS NULL;`);
+      console.log('[Database] Coluna email_verificado configurada na tabela usuarios.');
+    } catch (e) {
+      // Ignorar se a coluna já existir
+    }
+
+    // Criação da tabela de códigos de verificação de e-mail (OTP)
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS codigos_verificacao (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        email VARCHAR(150) NOT NULL,
+        codigo VARCHAR(10) NOT NULL,
+        expira_em DATETIME NOT NULL,
+        usado BOOLEAN DEFAULT FALSE,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_email_codigo (email, codigo)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
     // Criação da tabela de favoritos com chave única por (usuario_id, tmdb_movie_id)
     await connection.query(`
       CREATE TABLE IF NOT EXISTS favoritos (

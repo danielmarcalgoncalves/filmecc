@@ -1442,4 +1442,125 @@ h1, h2, h3, h4, .brand-title {
   border-left: 3px solid var(--accent-gold);
 }
 
+/* VERIFICAÇÃO OTP E CÓDIGO POR E-MAIL */
+.otp-card-header {
+  text-align: center;
+  margin-bottom: 1.25rem;
+}
+
+.otp-icon-container {
+  width: 56px;
+  height: 56px;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 0.75rem auto;
+  color: var(--accent-gold);
+}
+
+.otp-target-email {
+  color: var(--accent-gold);
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.otp-input {
+  letter-spacing: 10px;
+  font-size: 1.8rem !important;
+  font-weight: 700;
+  text-align: center;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  padding: 0.75rem 1rem !important;
+  background: var(--bg-surface-elevated) !important;
+  border: 2px solid var(--border-medium) !important;
+  border-radius: var(--radius-md) !important;
+  color: var(--accent-gold) !important;
+  transition: var(--transition-fast);
+}
+
+.otp-input:focus {
+  border-color: var(--accent-gold) !important;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2) !important;
+}
+
+.otp-timer-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--border-subtle);
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius-full);
+  margin-bottom: 1.25rem;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+
+.otp-timer-badge strong {
+  color: var(--accent-gold);
+  font-family: monospace;
+  font-size: 1rem;
+}
+
+.otp-timer-badge.timer-warning {
+  border-color: var(--accent-red);
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--accent-red);
+}
+
+.otp-timer-badge.timer-warning strong {
+  color: var(--accent-red);
+}
+
+.otp-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  text-align: center;
+}
+
+.otp-resend-btn {
+  background: none;
+  border: none;
+  color: var(--accent-blue);
+  font-size: 0.88rem;
+  cursor: pointer;
+  padding: 0.4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  transition: var(--transition-fast);
+}
+
+.otp-resend-btn:hover:not(:disabled) {
+  text-decoration: underline;
+  color: #60a5fa;
+}
+
+.otp-resend-btn:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.otp-back-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.otp-back-btn:hover {
+  color: var(--text-primary);
+}
+
+
 

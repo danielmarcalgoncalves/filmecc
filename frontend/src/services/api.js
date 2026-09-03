@@ -53,7 +53,10 @@ async function apiRequest(endpoint, options = {}) {
       clearSession();
     }
     const errorMsg = data.error || data.message || `Erro na requisição (${response.status})`;
-    throw new Error(errorMsg);
+    const err = new Error(errorMsg);
+    err.requireVerification = data.requireVerification;
+    err.email = data.email;
+    throw err;
   }
 
   return data;
@@ -66,8 +69,28 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ nome, email, senha })
       });
-      setSession(data.token, data.usuario);
+      if (data.token && data.usuario) {
+        setSession(data.token, data.usuario);
+      }
       return data;
+    },
+
+    async verifyCode(email, codigo) {
+      const data = await apiRequest('/auth/verify-code', {
+        method: 'POST',
+        body: JSON.stringify({ email, codigo })
+      });
+      if (data.token && data.usuario) {
+        setSession(data.token, data.usuario);
+      }
+      return data;
+    },
+
+    async resendCode(email) {
+      return await apiRequest('/auth/resend-code', {
+        method: 'POST',
+        body: JSON.stringify({ email })
+      });
     },
 
     async login(email, senha) {

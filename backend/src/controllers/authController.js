@@ -107,8 +107,34 @@ async function updateUserRole(req, res) {
   }
 }
 
+async function verifyCode(req, res) {
+  try {
+    const response = await axios.post(`${AUTH_SERVICE_URL}/verify-code`, req.body);
+    return res.status(response.status).json(response.data);
+  } catch (error) {
+    if (error.response) {
+      return res.status(error.response.status).json(error.response.data);
+    }
+    return res.status(500).json({ error: 'Erro interno ao contatar o serviço de autenticação.' });
+  }
+}
+
+async function resendCode(req, res) {
+  try {
+    const response = await axios.post(`${AUTH_SERVICE_URL}/resend-code`, req.body);
+    return res.status(response.status).json(response.data);
+  } catch (error) {
+    if (error.response) {
+      return res.status(error.response.status).json(error.response.data);
+    }
+    return res.status(500).json({ error: 'Erro interno ao contatar o serviço de autenticação.' });
+  }
+}
+
 module.exports = {
   register,
+  verifyCode,
+  resendCode,
   login,
   me,
   forgotPassword,
