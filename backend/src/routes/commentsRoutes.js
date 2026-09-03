@@ -14,7 +14,9 @@ router.delete('/:commentId', commentsController.deleteComment);
 
 // ROTA EXCLUSIVA DE ADMIN (RBAC): Moderação de comentários de qualquer usuário
 // Se um usuário com papel diferente de 'admin' chamar, o middleware retorna 403 Forbidden
+router.get('/admin/all', requireAdmin, commentsController.getAllCommentsAdmin);
 router.delete('/admin/:commentId', requireAdmin, commentsController.deleteCommentAny);
 
 module.exports = router;
+
 

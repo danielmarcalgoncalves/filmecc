@@ -4,11 +4,13 @@ import AuthModal from './components/AuthModal';
 import MovieCard from './components/MovieCard';
 import MovieDetailModal from './components/MovieDetailModal';
 import ResetPasswordModal from './components/ResetPasswordModal';
+import AdminDashboard from './components/AdminDashboard';
 import Toast from './components/Toast';
 import { api } from './services/api';
 
 export default function App() {
   const [user, setUser] = useState(api.auth.getStoredUser());
+  const [currentView, setCurrentView] = useState('catalog'); // 'catalog' | 'admin'
   const [movies, setMovies] = useState([]);
   const [favorites, setFavorites] = useState([]);
   const [comments, setComments] = useState([]);
@@ -205,19 +207,34 @@ export default function App() {
 
   return (
     <div className="app-container">
-      <Navbar user={user} onLogout={handleLogout} />
+      <Navbar 
+        user={user} 
+        onLogout={handleLogout} 
+        currentView={currentView}
+        onOpenAdmin={() => setCurrentView((prev) => (prev === 'admin' ? 'catalog' : 'admin'))}
+      />
 
-      <main className="main-content">
-        {/* HERO SECTION */}
-        <section className="hero-section">
-          <div className="hero-badge">
-            <span>✨ Filmografia Completa TMDB</span>
-          </div>
-          <h2 className="hero-title">Tom Hanks Film Collection</h2>
-          <p className="hero-subtitle">
-            Explore grandes clássicos e produções do premiado ator. Salve seus filmes favoritos e registre anotações pessoais com dados isolados exclusivamente na sua conta.
-          </p>
-        </section>
+      {/* SE FOR VISÃO DE ADMIN: RENDERIZA A NOVA PÁGINA COM TODOS OS USUÁRIOS E COMENTÁRIOS */}
+      {currentView === 'admin' && user?.papel === 'admin' ? (
+        <main className="main-content">
+          <AdminDashboard 
+            user={user} 
+            onBack={() => setCurrentView('catalog')} 
+            onShowToast={showToast} 
+          />
+        </main>
+      ) : (
+        <main className="main-content">
+          {/* HERO SECTION */}
+          <section className="hero-section">
+            <div className="hero-badge">
+              <span>✨ Filmografia Completa TMDB</span>
+            </div>
+            <h2 className="hero-title">Tom Hanks Film Collection</h2>
+            <p className="hero-subtitle">
+              Explore grandes clássicos e produções do premiado ator. Salve seus filmes favoritos e registre anotações pessoais com dados isolados exclusivamente na sua conta.
+            </p>
+          </section>
 
         {/* CONTROLES, ABAS E BUSCA */}
         <section className="controls-container">
@@ -338,6 +355,7 @@ export default function App() {
           </>
         )}
       </main>
+      )}
 
       {/* MODAL DE DETALHES E COMENTÁRIOS */}
       {selectedMovie && (

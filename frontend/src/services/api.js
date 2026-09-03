@@ -170,6 +170,10 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify({ papel })
       });
+    },
+
+    async listAllComments() {
+      return await apiRequest('/comments/admin/all');
     }
   }
 };

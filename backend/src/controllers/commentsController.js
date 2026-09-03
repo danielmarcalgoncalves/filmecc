@@ -141,11 +141,31 @@ async function deleteCommentAny(req, res) {
   }
 }
 
+// AÇÃO EXCLUSIVA DE ADMIN (RBAC): Lista TODOS os comentários de todos os usuários
+async function getAllCommentsAdmin(req, res) {
+  try {
+    const [rows] = await pool.query(
+      `SELECT c.id, c.usuario_id, c.tmdb_movie_id, c.texto, c.criado_em, 
+              u.nome AS autor_nome, u.email AS autor_email, u.papel AS autor_papel
+       FROM comentarios c
+       JOIN usuarios u ON c.usuario_id = u.id
+       ORDER BY c.criado_em DESC`
+    );
+
+    return res.json({ comentarios: rows });
+  } catch (error) {
+    console.error('[Comments Controller] Erro ao listar todos os comentários para admin:', error);
+    return res.status(500).json({ error: 'Erro interno ao buscar comentários.' });
+  }
+}
+
 module.exports = {
   getAllUserComments,
   getMovieComments,
   addComment,
   deleteComment,
-  deleteCommentAny
+  deleteCommentAny,
+  getAllCommentsAdmin
 };
+
 

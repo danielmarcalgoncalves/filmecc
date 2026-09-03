@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function Navbar({ user, onLogout }) {
+export default function Navbar({ user, onLogout, onOpenAdmin, currentView }) {
   return (
     <header className="navbar">
       <div className="navbar-inner">
@@ -27,6 +27,20 @@ export default function Navbar({ user, onLogout }) {
                 {user.papel === 'admin' ? '🛡️ Admin' : user.papel === 'premium' ? '⭐ Premium' : '👤 Usuário'}
               </span>
             </div>
+          )}
+
+          {/* BOTÃO EXCLUSIVO DE ADMIN: Acessa painel com todos os usuários e comentários */}
+          {user && user.papel === 'admin' && (
+            <button
+              className={`btn-admin-nav ${currentView === 'admin' ? 'active' : ''}`}
+              onClick={onOpenAdmin}
+              title="Painel de Administração (Gerenciar usuários e comentários)"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              </svg>
+              <span>{currentView === 'admin' ? 'Ver Catálogo' : 'Painel Admin'}</span>
+            </button>
           )}
 
           <button className="btn-logout" onClick={onLogout} title="Encerrar sessão">
