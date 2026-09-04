@@ -4,17 +4,18 @@
 # ====================================================================
 
 # Estágio 1: Build do Frontend React
-FROM node:20-alpine AS frontend-builder
+FROM node:20-slim AS frontend-builder
 WORKDIR /app/frontend
 
 COPY frontend/package*.json ./
 RUN npm install
 
 COPY frontend/ ./
+ENV NODE_OPTIONS="--max-old-space-size=2048"
 RUN npm run build
 
 # Estágio 2: Ambiente de Execução do Backend Node.js
-FROM node:20-alpine AS runtime
+FROM node:20-slim AS runtime
 WORKDIR /app
 
 # Instalação de dependências do backend
