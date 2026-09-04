@@ -12,11 +12,16 @@ const favoritesRoutes = require('./src/routes/favoritesRoutes');
 const commentsRoutes = require('./src/routes/commentsRoutes');
 const listsRoutes = require('./src/routes/listsRoutes');
 
+const { securityHeaders } = require('./src/middlewares/security');
+
 const app = express();
+
+// Headers de segurança e proteção HTTP
+app.use(securityHeaders);
 
 // Configuração de CORS e Parsers
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 // Rotas da API
 app.use('/api/auth', authRoutes);

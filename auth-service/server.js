@@ -37,14 +37,56 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-const authMiddleware = (req, res, next) => {
+// Armazenamento em memória para Rate Limiting no auth-service
+const authRateLimitMap = new Map();
+function rateLimit(windowMs, maxReqs, customMsg) {
+  return (req, res, next) => {
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip || req.connection.remoteAddress || 'ip';
+    const key = `${req.path}:${ip}`;
+    const now = Date.now();
+    let item = authRateLimitMap.get(key);
+    if (!item || now - item.time > windowMs) {
+      item = { count: 1, time: now };
+      authRateLimitMap.set(key, item);
+    } else {
+      item.count++;
+    }
+    if (item.count > maxReqs) {
+      return res.status(429).json({ error: customMsg || 'Muitas tentativas. Aguarde alguns minutos.' });
+    }
+    next();
+  };
+}
+
+// Rastreamento de tentativas falhas de verificação de código por e-mail (Prevenção contra Brute Force de OTP)
+const failedVerifyAttempts = new Map();
+
+const authMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader) return res.status(401).json({ error: 'Token não fornecido.' });
 
-  const [, token] = authHeader.split(' ');
+  const parts = authHeader.split(' ');
+  if (parts.length !== 2 || parts[0] !== 'Bearer') {
+    return res.status(401).json({ error: 'Formato de token inválido. Esperado: Bearer <token>' });
+  }
+
+  const token = parts[1];
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.usuarioId = decoded.id;
+    if (!decoded || !decoded.id) {
+      return res.status(401).json({ error: 'Token inválido.' });
+    }
+
+    // Consulta MariaDB em tempo real: elimina IDOR e falsificação de papel
+    const [users] = await pool.query('SELECT id, nome, email, papel, email_verificado FROM usuarios WHERE id = ?', [decoded.id]);
+    if (users.length === 0) {
+      return res.status(401).json({ error: 'Usuário não encontrado ou revogado.' });
+    }
+
+    const usuarioDb = users[0];
+    req.usuarioId = usuarioDb.id;
+    req.usuarioPapel = usuarioDb.papel || 'usuario';
+    req.usuario = usuarioDb;
     return next();
   } catch (err) {
     return res.status(401).json({ error: 'Token inválido ou expirado.' });
@@ -86,11 +128,18 @@ async function sendVerificationEmail(email, nome, codigo) {
   });
 }
 
-app.post('/register', async (req, res) => {
+app.post('/register', rateLimit(15 * 60 * 1000, 5, 'Limite de cadastros por IP atingido. Aguarde 15 minutos.'), async (req, res) => {
   try {
     const { nome, email, senha } = req.body;
     if (!nome || !email || !senha) return res.status(400).json({ error: 'Nome, e-mail e senha obrigatórios.' });
-    if (senha.length < 4) return res.status(400).json({ error: 'Senha deve ter min 4 chars.' });
+    if (senha.length < 6) return res.status(400).json({ error: 'Senha deve ter no mínimo 6 caracteres.' });
+
+    // Bloqueia termos ofensivos / slurs
+    const blockedTerms = ['nigga', 'nigger', 'admin', 'root'];
+    const lowerName = nome.trim().toLowerCase();
+    if (blockedTerms.some(t => lowerName.includes(t))) {
+      return res.status(400).json({ error: 'Nome de usuário inválido.' });
+    }
 
     // Blindagem rigorosa de segurança:
     // Qualquer parâmetro 'papel' enviado pelo cliente é estritamente ignorado.
@@ -147,7 +196,7 @@ app.post('/register', async (req, res) => {
 });
 
 // Validação do código de 6 dígitos recebido por e-mail
-app.post('/verify-code', async (req, res) => {
+app.post('/verify-code', rateLimit(10 * 60 * 1000, 8, 'Muitas tentativas de verificação. Aguarde 10 minutos.'), async (req, res) => {
   try {
     const { email, codigo } = req.body;
     if (!email || !codigo) {
@@ -157,6 +206,15 @@ app.post('/verify-code', async (req, res) => {
     const emailTrimmed = email.trim().toLowerCase();
     const codigoTrimmed = codigo.toString().trim();
 
+    // Verificação de tentativas falhas (Proteção anti-bruteforce)
+    const attempts = failedVerifyAttempts.get(emailTrimmed) || 0;
+    if (attempts >= 5) {
+      await pool.query('UPDATE codigos_verificacao SET usado = TRUE WHERE email = ?', [emailTrimmed]);
+      return res.status(429).json({
+        error: 'Número excessivo de tentativas incorretas. O código foi invalidado por segurança. Solicite um novo código.'
+      });
+    }
+
     // Busca o código mais recente não utilizado para este e-mail
     const [codigos] = await pool.query(
       'SELECT * FROM codigos_verificacao WHERE email = ? AND codigo = ? AND usado = FALSE ORDER BY id DESC LIMIT 1',
@@ -164,8 +222,14 @@ app.post('/verify-code', async (req, res) => {
     );
 
     if (codigos.length === 0) {
-      return res.status(400).json({ error: 'Código de verificação incorreto ou já utilizado.' });
+      failedVerifyAttempts.set(emailTrimmed, attempts + 1);
+      return res.status(400).json({
+        error: `Código de verificação incorreto ou já utilizado. Tentativas restantes: ${Math.max(0, 5 - (attempts + 1))}`
+      });
     }
+
+    // Limpa histórico de tentativas falhas em caso de sucesso
+    failedVerifyAttempts.delete(emailTrimmed);
 
     const regCodigo = codigos[0];
     if (new Date() > new Date(regCodigo.expira_em)) {
@@ -318,6 +382,11 @@ app.patch('/users/:id/role', authMiddleware, async (req, res) => {
     const targetId = req.params.id;
     const { papel } = req.body;
     const papeisValidos = ['usuario', 'premium', 'admin'];
+
+    // Prevenção de auto-despromoção ou IDOR acidental
+    if (Number(req.usuarioId) === Number(targetId) && papel !== 'admin') {
+      return res.status(400).json({ error: 'Por segurança, você não pode revogar seu próprio papel de administrador.' });
+    }
 
     if (!papeisValidos.includes(papel)) {
       return res.status(400).json({ error: `Papel inválido. Opções válidas: ${papeisValidos.join(', ')}` });
