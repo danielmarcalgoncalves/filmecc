@@ -25,8 +25,8 @@ export default function Carousel({
 
   if (!movies || movies.length === 0) return null;
 
-  const displayedMovies = isGuest ? movies.slice(0, 6) : movies;
-  const lockedPosterMovie = isGuest && movies.length > 6 ? movies[6] : null;
+  const displayedMovies = isGuest ? movies.slice(0, 8) : movies;
+  const blurredTeaserMovies = isGuest ? movies.slice(8, 11) : [];
 
   return (
     <section className="carousel-section">
@@ -76,46 +76,30 @@ export default function Carousel({
             </div>
           ))}
 
-          {/* Card com filme em blur e mensagem para visitante entrar/cadastrar */}
-          {isGuest && lockedPosterMovie && (
+          {/* 3 filmes em blur para estética visual sem mensagem de cadastro */}
+          {isGuest && blurredTeaserMovies.map((movie) => (
             <div
-              className="carousel-item carousel-item-locked"
+              key={`blur-${movie.id}`}
+              className="carousel-item carousel-item-blur"
               onClick={() => onOpenAuth && onOpenAuth('register')}
-              title="Clique para entrar ou criar conta"
+              title={movie.title ? `${movie.title} — Cadastre-se para desbloquear` : 'Cadastre-se para desbloquear'}
             >
-              <div className="carousel-locked-card">
-                {lockedPosterMovie.poster_url && (
+              <div className="carousel-blurred-poster-card">
+                {movie.poster_url ? (
                   <img
-                    src={lockedPosterMovie.poster_url}
-                    alt={lockedPosterMovie.title || 'Filme Bloqueado'}
-                    className="carousel-locked-bg-img"
+                    src={movie.poster_url}
+                    alt={movie.title || 'Filme'}
+                    className="carousel-blurred-poster-img"
                   />
-                )}
-                <div className="carousel-locked-overlay">
-                  <div className="carousel-lock-icon-wrap">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                    </svg>
+                ) : (
+                  <div className="poster-fallback">
+                    <span>Sem pôster</span>
                   </div>
-                  <span className="carousel-locked-badge">+{movies.length - 6} Filmes</span>
-                  <p className="carousel-locked-msg">
-                    Entre ou cadastre-se para ver a lista completa
-                  </p>
-                  <button
-                    type="button"
-                    className="btn-carousel-unlock"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onOpenAuth && onOpenAuth('register');
-                    }}
-                  >
-                    Entrar / Cadastrar
-                  </button>
-                </div>
+                )}
+                <div className="carousel-blurred-overlay-glass" />
               </div>
             </div>
-          )}
+          ))}
         </div>
 
         {isGuest && (

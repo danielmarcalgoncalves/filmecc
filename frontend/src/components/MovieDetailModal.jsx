@@ -310,39 +310,21 @@ export default function MovieDetailModal({
                 </p>
               </div>
 
-              {/* Elenco com Fotos Circulares */}
+              {/* Elenco Principal (Apenas Nomes e Papéis, sem fotos) */}
               <div className="detail-section-block">
                 <h3 className="section-block-title">Elenco Principal</h3>
-                <div className="cast-avatars-row">
-                  <div className="cast-avatar-item">
-                    <div className="cast-avatar-circle">
-                      <img
-                        src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&h=120&fit=crop&auto=format"
-                        alt="Tom Hanks"
-                      />
-                    </div>
-                    <p className="cast-name">Tom Hanks</p>
-                    <p className="cast-role">{movie.character || 'Protagonista'}</p>
+                <div className="cast-names-wrap">
+                  <div className="cast-text-chip">
+                    <span className="cast-actor-name">Tom Hanks</span>
+                    <span className="cast-actor-role">{movie.character ? `como ${movie.character}` : 'Protagonista'}</span>
                   </div>
-                  <div className="cast-avatar-item">
-                    <div className="cast-avatar-circle">
-                      <img
-                        src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&h=120&fit=crop&auto=format"
-                        alt="Elenco de Apoio"
-                      />
-                    </div>
-                    <p className="cast-name">Co-estrela</p>
-                    <p className="cast-role">Elenco TMDB</p>
+                  <div className="cast-text-chip">
+                    <span className="cast-actor-name">Elenco Coadjuvante</span>
+                    <span className="cast-actor-role">Artistas TMDB</span>
                   </div>
-                  <div className="cast-avatar-item">
-                    <div className="cast-avatar-circle">
-                      <img
-                        src="https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&h=120&fit=crop&auto=format"
-                        alt="Direção"
-                      />
-                    </div>
-                    <p className="cast-name">Direção</p>
-                    <p className="cast-role">Produção</p>
+                  <div className="cast-text-chip">
+                    <span className="cast-actor-name">Equipe Técnica</span>
+                    <span className="cast-actor-role">Direção e Produção</span>
                   </div>
                 </div>
               </div>
@@ -380,13 +362,13 @@ export default function MovieDetailModal({
                 {!user ? (
                   <div className="comments-locked-box">
                     <div className="locked-badge-icon">
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                         <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                       </svg>
                     </div>
-                    <h4>Anotações Privadas Bloqueadas</h4>
-                    <p>
+                    <h4 className="locked-box-title">Anotações Privadas Bloqueadas</h4>
+                    <p className="locked-box-text">
                       Faça login ou crie sua conta gratuita para registrar suas críticas e salvar anotações particulares para este filme.
                     </p>
                     <button
@@ -401,93 +383,95 @@ export default function MovieDetailModal({
                     </button>
                   </div>
                 ) : (
-                  <form className="comment-form" onSubmit={handleAddComment}>
-                    <textarea
-                      className="comment-textarea"
-                      placeholder="Escreva suas impressões, crítica ou anotação pessoal sobre este filme..."
-                      value={newCommentText}
-                      onChange={(e) => setNewCommentText(e.target.value)}
-                      required
-                    />
-                    <button
-                      type="submit"
-                      className="btn-submit-comment"
-                      disabled={submittingComment || !newCommentText.trim()}
-                    >
-                      {submittingComment ? 'Salvando...' : 'Publicar Anotação'}
-                    </button>
-                  </form>
-                )}
+                  <>
+                    <form className="comment-form" onSubmit={handleAddComment}>
+                      <textarea
+                        className="comment-textarea"
+                        placeholder="Escreva suas impressões, crítica ou anotação pessoal sobre este filme..."
+                        value={newCommentText}
+                        onChange={(e) => setNewCommentText(e.target.value)}
+                        required
+                      />
+                      <button
+                        type="submit"
+                        className="btn-submit-comment"
+                        disabled={submittingComment || !newCommentText.trim()}
+                      >
+                        {submittingComment ? 'Salvando...' : 'Publicar Anotação'}
+                      </button>
+                    </form>
 
-                {/* Lista de Comentários */}
-                <div className="comments-list">
-                  {loadingComments ? (
-                    <div className="comments-empty-text">Carregando suas anotações...</div>
-                  ) : comments.length === 0 ? (
-                    <div className="comments-empty-text">
-                      Você ainda não escreveu anotações para este filme. Deixe sua primeira impressão acima!
-                    </div>
-                  ) : (
-                    comments.map((c) => {
-                      const isAuthor = user?.id === c.usuario_id;
-                      const isAdmin = user?.papel === 'admin';
-                      const autorNome = c.autor_nome || (isAuthor ? user?.nome : 'Membro');
-                      const autorPapel = c.autor_papel || (isAuthor ? user?.papel : 'usuario');
-
-                      return (
-                        <div key={c.id} className="comment-bubble">
-                          <div className="comment-bubble-header">
-                            <div className="comment-author-info">
-                              <div className="comment-avatar">
-                                {autorNome ? autorNome.charAt(0).toUpperCase() : 'U'}
-                              </div>
-                              <span className="comment-author-name">{autorNome}</span>
-                              <span className={`role-badge-mini role-${autorPapel}`}>
-                                {autorPapel === 'admin' ? 'Admin' : autorPapel === 'premium' ? 'Premium' : 'Membro'}
-                              </span>
-                            </div>
-
-                            <div className="comment-date-actions">
-                              <span className="comment-timestamp">
-                                {new Date(c.criado_em).toLocaleDateString('pt-BR', {
-                                  day: '2-digit',
-                                  month: '2-digit',
-                                  year: 'numeric'
-                                })}
-                              </span>
-
-                              {isAuthor && (
-                                <button
-                                  type="button"
-                                  className="btn-delete-comment-icon"
-                                  onClick={() => handleDeleteComment(c.id)}
-                                  title="Remover anotação"
-                                >
-                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <polyline points="3 6 5 6 21 6"></polyline>
-                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                  </svg>
-                                </button>
-                              )}
-
-                              {!isAuthor && isAdmin && (
-                                <button
-                                  type="button"
-                                  className="btn-admin-moderate"
-                                  onClick={() => handleAdminModerateComment(c.id, autorNome)}
-                                  title="[Admin RBAC] Moderar anotação"
-                                >
-                                  Moderar
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          <p className="comment-body-text">{c.conteudo}</p>
+                    {/* Lista de Comentários para usuário logado */}
+                    <div className="comments-list">
+                      {loadingComments ? (
+                        <div className="comments-empty-text">Carregando suas anotações...</div>
+                      ) : comments.length === 0 ? (
+                        <div className="comments-empty-text">
+                          Você ainda não escreveu anotações para este filme. Deixe sua primeira impressão acima!
                         </div>
-                      );
-                    })
-                  )}
-                </div>
+                      ) : (
+                        comments.map((c) => {
+                          const isAuthor = user?.id === c.usuario_id;
+                          const isAdmin = user?.papel === 'admin';
+                          const autorNome = c.autor_nome || (isAuthor ? user?.nome : 'Membro');
+                          const autorPapel = c.autor_papel || (isAuthor ? user?.papel : 'usuario');
+
+                          return (
+                            <div key={c.id} className="comment-bubble">
+                              <div className="comment-bubble-header">
+                                <div className="comment-author-info">
+                                  <div className="comment-avatar">
+                                    {autorNome ? autorNome.charAt(0).toUpperCase() : 'U'}
+                                  </div>
+                                  <span className="comment-author-name">{autorNome}</span>
+                                  <span className={`role-badge-mini role-${autorPapel}`}>
+                                    {autorPapel === 'admin' ? 'Admin' : autorPapel === 'premium' ? 'Premium' : 'Membro'}
+                                  </span>
+                                </div>
+
+                                <div className="comment-date-actions">
+                                  <span className="comment-timestamp">
+                                    {new Date(c.criado_em).toLocaleDateString('pt-BR', {
+                                      day: '2-digit',
+                                      month: '2-digit',
+                                      year: 'numeric'
+                                    })}
+                                  </span>
+
+                                  {isAuthor && (
+                                    <button
+                                      type="button"
+                                      className="btn-delete-comment-icon"
+                                      onClick={() => handleDeleteComment(c.id)}
+                                      title="Remover anotação"
+                                    >
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <polyline points="3 6 5 6 21 6"></polyline>
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                      </svg>
+                                    </button>
+                                  )}
+
+                                  {!isAuthor && isAdmin && (
+                                    <button
+                                      type="button"
+                                      className="btn-admin-moderate"
+                                      onClick={() => handleAdminModerateComment(c.id, autorNome)}
+                                      title="[Admin RBAC] Moderar anotação"
+                                    >
+                                      Moderar
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              <p className="comment-body-text">{c.conteudo}</p>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             </main>
           </div>

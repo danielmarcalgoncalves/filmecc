@@ -18,17 +18,17 @@ export default function Navbar({
         {/* Logo Cinefilia com 3 círculos característicos */}
         <button
           type="button"
-          className="cinefilia-brand"
+          className="cinefilia-brand cth-brand"
           onClick={onHome ? onHome : () => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          title="Início"
+          title="Catálogo Tom Hanks — Início"
         >
           <div className="brand-dots">
             <span className="dot-orange" />
             <span className="dot-green" />
             <span className="dot-blue" />
           </div>
-          <span className="brand-text">Cinefilia</span>
-          <span className="brand-subtext">· Tom Hanks</span>
+          <span className="brand-text-cth">CTH</span>
+          <span className="brand-subtext-cth">(Catálogo Tom Hanks)</span>
         </button>
 
         {/* Links / Abas Rápidas no Menu Superior */}

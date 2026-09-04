@@ -231,7 +231,7 @@ export default function App() {
   }, [user, filteredMovies]);
 
   const lockedGridMovies = useMemo(() => {
-    return !user ? filteredMovies.slice(12, 24) : [];
+    return !user ? filteredMovies.slice(12, 36) : [];
   }, [user, filteredMovies]);
 
   const handleTabSelect = (tab) => {
@@ -522,13 +522,13 @@ export default function App() {
                       ))}
                     </div>
 
-                    {/* SEÇÃO COM BLUR E OVERLAY DE DESBLOQUEIO APÓS 2 LINHAS (MODO VISITANTE) */}
+                    {/* SEÇÃO COM 4 FILAS EM BLUR FRACO E MENSAGEM MINIMALISTA (MODO VISITANTE) */}
                     {!user && lockedGridMovies.length > 0 && (
                       <div className="preview-locked-container">
-                        <div className="cinefilia-poster-grid preview-blurred-grid" aria-hidden="true">
+                        <div className="cinefilia-poster-grid preview-weak-blurred-grid" aria-hidden="true">
                           {lockedGridMovies.map((movie) => (
                             <MovieCard
-                              key={movie.id}
+                              key={`locked-${movie.id}`}
                               movie={movie}
                               isFavorite={false}
                               commentCount={0}
@@ -538,35 +538,34 @@ export default function App() {
                           ))}
                         </div>
 
-                        <div className="preview-locked-overlay">
-                          <div className="preview-locked-card">
-                            <div className="preview-lock-badge">
-                              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <div className="preview-minimalist-overlay">
+                          <div className="preview-minimalist-card">
+                            <div className="preview-minimalist-icon">
+                              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                                 <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                               </svg>
                             </div>
-                            <h3 className="preview-locked-title">Desbloqueie a Coleção Completa (+60 Obras)</h3>
-                            <p className="preview-locked-desc">
-                              Você visualizou as 2 primeiras linhas do catálogo. Crie sua conta gratuita em poucos segundos ou faça login para explorar toda a filmografia de Tom Hanks, salvar seus títulos favoritos e registrar anotações exclusivas no seu banco individual.
+                            <h3 className="preview-minimalist-title">
+                              Desbloqueie toda a filmografia (+60 obras)
+                            </h3>
+                            <p className="preview-minimalist-desc">
+                              Cadastre-se gratuitamente para ver todos os títulos, avaliações e salvar seus favoritos.
                             </p>
-                            <div className="preview-locked-btn-group">
+                            <div className="preview-minimalist-buttons">
                               <button
                                 type="button"
-                                className="btn-preview-cta-register"
+                                className="btn-minimalist-register"
                                 onClick={() => setAuthModalState({ isOpen: true, initialTab: 'register' })}
                               >
-                                <span>Criar Conta Gratuita</span>
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <polyline points="9 18 15 12 9 6"></polyline>
-                                </svg>
+                                Criar Conta Gratuita
                               </button>
                               <button
                                 type="button"
-                                className="btn-preview-cta-login"
+                                className="btn-minimalist-login"
                                 onClick={() => setAuthModalState({ isOpen: true, initialTab: 'login' })}
                               >
-                                Já sou cadastrado / Entrar
+                                Entrar
                               </button>
                             </div>
                           </div>
