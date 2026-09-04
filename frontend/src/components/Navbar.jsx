@@ -128,9 +128,6 @@ export default function Navbar({
             </>
           ) : (
             <div className="guest-nav-group">
-              <span className="guest-tag" title="Você está visualizando a prévia">
-                ✨ Degustação
-              </span>
               <button
                 type="button"
                 className="btn-nav-login"

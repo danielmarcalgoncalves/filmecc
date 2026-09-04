@@ -11,7 +11,9 @@ export default function Carousel({
   onToggleWatched,
   onToggleWatchlist,
   watchedMovieIds = new Set(),
-  watchlistMovieIds = new Set()
+  watchlistMovieIds = new Set(),
+  isGuest = false,
+  onOpenAuth
 }) {
   const scrollRef = useRef(null);
 
@@ -22,6 +24,9 @@ export default function Carousel({
   };
 
   if (!movies || movies.length === 0) return null;
+
+  const displayedMovies = isGuest ? movies.slice(0, 6) : movies;
+  const lockedPosterMovie = isGuest && movies.length > 6 ? movies[6] : null;
 
   return (
     <section className="carousel-section">
@@ -53,22 +58,73 @@ export default function Carousel({
         </div>
       </div>
 
-      <div className="carousel-track" ref={scrollRef}>
-        {movies.map((movie) => (
-          <div key={movie.id} className="carousel-item">
-            <MovieCard
-              movie={movie}
-              isFavorite={favoriteMovieIds.has(movie.id)}
-              isWatched={watchedMovieIds.has(movie.id)}
-              isWatchlist={watchlistMovieIds.has(movie.id)}
-              commentCount={commentsCountByMovie[movie.id] || 0}
-              onToggleFavorite={onToggleFavorite}
-              onToggleWatched={onToggleWatched}
-              onToggleWatchlist={onToggleWatchlist}
-              onOpenDetails={onSelect}
-            />
-          </div>
-        ))}
+      <div className={`carousel-track-wrapper ${isGuest ? 'has-fade-edge' : ''}`}>
+        <div className="carousel-track" ref={scrollRef}>
+          {displayedMovies.map((movie) => (
+            <div key={movie.id} className="carousel-item">
+              <MovieCard
+                movie={movie}
+                isFavorite={favoriteMovieIds.has(movie.id)}
+                isWatched={watchedMovieIds.has(movie.id)}
+                isWatchlist={watchlistMovieIds.has(movie.id)}
+                commentCount={commentsCountByMovie[movie.id] || 0}
+                onToggleFavorite={onToggleFavorite}
+                onToggleWatched={onToggleWatched}
+                onToggleWatchlist={onToggleWatchlist}
+                onOpenDetails={onSelect}
+              />
+            </div>
+          ))}
+
+          {/* Card com filme em blur e mensagem para visitante entrar/cadastrar */}
+          {isGuest && lockedPosterMovie && (
+            <div
+              className="carousel-item carousel-item-locked"
+              onClick={() => onOpenAuth && onOpenAuth('register')}
+              title="Clique para entrar ou criar conta"
+            >
+              <div className="carousel-locked-card">
+                {lockedPosterMovie.poster_url && (
+                  <img
+                    src={lockedPosterMovie.poster_url}
+                    alt={lockedPosterMovie.title || 'Filme Bloqueado'}
+                    className="carousel-locked-bg-img"
+                  />
+                )}
+                <div className="carousel-locked-overlay">
+                  <div className="carousel-lock-icon-wrap">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                  </div>
+                  <span className="carousel-locked-badge">+{movies.length - 6} Filmes</span>
+                  <p className="carousel-locked-msg">
+                    Entre ou cadastre-se para ver a lista completa
+                  </p>
+                  <button
+                    type="button"
+                    className="btn-carousel-unlock"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenAuth && onOpenAuth('register');
+                    }}
+                  >
+                    Entrar / Cadastrar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {isGuest && (
+          <div
+            className="carousel-fade-edge"
+            onClick={() => handleScroll(1)}
+            title="Clique para ver mais filmes"
+          />
+        )}
       </div>
     </section>
   );

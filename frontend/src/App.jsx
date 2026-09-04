@@ -225,13 +225,13 @@ export default function App() {
     return result;
   }, [movies, activeTab, activeGenre, searchQuery, sortBy, favoriteMovieIds, commentsCountByMovie]);
 
-  // Separação do Modo Visitante: 6 primeiros filmes nas 2 primeiras linhas, 3ª linha com blur (+3 filmes)
+  // Separação do Modo Visitante: 2 linhas completas (12 filmes) e depois a seção com blur
   const visibleGridMovies = useMemo(() => {
-    return user ? filteredMovies : filteredMovies.slice(0, 6);
+    return user ? filteredMovies : filteredMovies.slice(0, 12);
   }, [user, filteredMovies]);
 
-  const lockedRowMovies = useMemo(() => {
-    return !user ? filteredMovies.slice(6, 9) : [];
+  const lockedGridMovies = useMemo(() => {
+    return !user ? filteredMovies.slice(12, 24) : [];
   }, [user, filteredMovies]);
 
   const handleTabSelect = (tab) => {
@@ -382,6 +382,8 @@ export default function App() {
                 onToggleFavorite={handleToggleFavorite}
                 onToggleWatched={handleToggleFavorite}
                 onToggleWatchlist={(m) => handleRequireAuth('favorite', m.title)}
+                isGuest={!user}
+                onOpenAuth={(tab) => setAuthModalState({ isOpen: true, initialTab: tab })}
               />
 
               <Carousel
@@ -393,6 +395,8 @@ export default function App() {
                 onToggleFavorite={handleToggleFavorite}
                 onToggleWatched={handleToggleFavorite}
                 onToggleWatchlist={(m) => handleRequireAuth('favorite', m.title)}
+                isGuest={!user}
+                onOpenAuth={(tab) => setAuthModalState({ isOpen: true, initialTab: tab })}
               />
 
               <Carousel
@@ -404,6 +408,8 @@ export default function App() {
                 onToggleFavorite={handleToggleFavorite}
                 onToggleWatched={handleToggleFavorite}
                 onToggleWatchlist={(m) => handleRequireAuth('favorite', m.title)}
+                isGuest={!user}
+                onOpenAuth={(tab) => setAuthModalState({ isOpen: true, initialTab: tab })}
               />
 
               <div className="section-divider-line" />
@@ -516,33 +522,33 @@ export default function App() {
                       ))}
                     </div>
 
-                    {/* TERCEIRA LINHA COM BLUR E OVERLAY DE DEGUSTAÇÃO (MODO VISITANTE) */}
-                    {!user && lockedRowMovies.length > 0 && (
+                    {/* SEÇÃO COM BLUR E OVERLAY DE DESBLOQUEIO APÓS 2 LINHAS (MODO VISITANTE) */}
+                    {!user && lockedGridMovies.length > 0 && (
                       <div className="preview-locked-container">
                         <div className="cinefilia-poster-grid preview-blurred-grid" aria-hidden="true">
-                          {lockedRowMovies.map((movie) => (
+                          {lockedGridMovies.map((movie) => (
                             <MovieCard
                               key={movie.id}
                               movie={movie}
                               isFavorite={false}
                               commentCount={0}
-                              onToggleFavorite={() => handleRequireAuth('favorite', movie.title)}
-                              onOpenDetails={() => handleRequireAuth('favorite', movie.title)}
+                              onToggleFavorite={() => setAuthModalState({ isOpen: true, initialTab: 'login' })}
+                              onOpenDetails={() => setAuthModalState({ isOpen: true, initialTab: 'login' })}
                             />
                           ))}
                         </div>
 
                         <div className="preview-locked-overlay">
-                          <div className="preview-locked-content">
+                          <div className="preview-locked-card">
                             <div className="preview-lock-badge">
-                              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                                 <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                               </svg>
                             </div>
                             <h3 className="preview-locked-title">Desbloqueie a Coleção Completa (+60 Obras)</h3>
                             <p className="preview-locked-desc">
-                              Você está na degustação. Crie sua conta gratuita em poucos segundos para explorar a filmografia completa, salvar seus títulos favoritos e registrar anotações exclusivas no seu banco individual.
+                              Você visualizou as 2 primeiras linhas do catálogo. Crie sua conta gratuita em poucos segundos ou faça login para explorar toda a filmografia de Tom Hanks, salvar seus títulos favoritos e registrar anotações exclusivas no seu banco individual.
                             </p>
                             <div className="preview-locked-btn-group">
                               <button
