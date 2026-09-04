@@ -2,12 +2,15 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Navbar from './components/Navbar';
 import AuthModal from './components/AuthModal';
 import GuestActionModal from './components/GuestActionModal';
+import Carousel from './components/Carousel';
 import MovieCard from './components/MovieCard';
 import MovieDetailModal from './components/MovieDetailModal';
 import ResetPasswordModal from './components/ResetPasswordModal';
 import AdminDashboard from './components/AdminDashboard';
 import Toast from './components/Toast';
 import { api } from './services/api';
+
+const GENRES = ['Todos', 'Drama', 'Comédia', 'Guerra', 'Animação', 'Aventura', 'Romance'];
 
 export default function App() {
   const [user, setUser] = useState(api.auth.getStoredUser());
@@ -24,8 +27,9 @@ export default function App() {
 
   // Filtros e Navegação
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'favorites' | 'comments'
+  const [activeGenre, setActiveGenre] = useState('Todos');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState('popularity'); // 'popularity' | 'rating' | 'year_desc' | 'year_asc' | 'title_asc'
+  const [sortBy, setSortBy] = useState('rating'); // 'rating' | 'year' | 'title'
   const [selectedMovie, setSelectedMovie] = useState(null);
 
   // Recuperação de senha
@@ -36,22 +40,11 @@ export default function App() {
   // Toast
   const [toast, setToast] = useState(null);
 
-  // Barra de controles sticky ao rolar
-  const [isControlsSticky, setIsControlsSticky] = useState(false);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setIsControlsSticky(window.scrollY > 150);
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
   };
 
-  // Carrega os dados da filmografia e dados isolados do usuário se logado
+  // Carrega os dados da filmografia e dados do usuário se logado
   useEffect(() => {
     loadInitialData();
   }, [user]);
@@ -108,7 +101,6 @@ export default function App() {
     showToast('Sessão encerrada com sucesso.', 'success');
   };
 
-  // Aciona o pop-up de aviso para visitantes quando tentam curtir ou comentar
   const handleRequireAuth = (type = 'favorite', movieTitle = '') => {
     setGuestActionModal({
       isOpen: true,
@@ -117,7 +109,6 @@ export default function App() {
     });
   };
 
-  // Adiciona ou remove filme dos favoritos
   const handleToggleFavorite = async (movie) => {
     if (!user) {
       handleRequireAuth('favorite', movie?.title);
@@ -150,7 +141,6 @@ export default function App() {
     }
   };
 
-  // Mapeamento de comentários por filme
   const commentsCountByMovie = useMemo(() => {
     const map = {};
     for (const c of comments) {
@@ -159,59 +149,84 @@ export default function App() {
     return map;
   }, [comments]);
 
-  // Conjunto de IDs favoritados para verificação rápida O(1)
   const favoriteMovieIds = useMemo(() => {
     return new Set(favorites.map((f) => f.tmdb_movie_id));
   }, [favorites]);
 
-  // Lista filtrada e ordenada de filmes
+  // Filme em destaque para o Hero (Forrest Gump ou o mais popular com backdrop)
+  const heroMovie = useMemo(() => {
+    if (movies.length === 0) return null;
+    const forrest = movies.find((m) => m.title && m.title.toLowerCase().includes('forrest gump') && m.backdrop_url);
+    if (forrest) return forrest;
+    const withBackdrop = movies.filter((m) => m.backdrop_url);
+    return withBackdrop.length > 0 ? withBackdrop[0] : movies[0];
+  }, [movies]);
+
+  // Carrosséis categorizados (Estilo Letterboxd / Cinefilia)
+  const popularMovies = useMemo(() => {
+    return [...movies].sort((a, b) => (b.popularity || 0) - (a.popularity || 0)).slice(0, 15);
+  }, [movies]);
+
+  const recentMovies = useMemo(() => {
+    return [...movies].sort((a, b) => (b.release_date || '').localeCompare(a.release_date || '')).slice(0, 15);
+  }, [movies]);
+
+  const topRatedMovies = useMemo(() => {
+    return [...movies]
+      .filter((m) => (m.vote_average || 0) >= 7.5)
+      .sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0))
+      .slice(0, 15);
+  }, [movies]);
+
+  // Lista filtrada e ordenada para a seção "Todos os Filmes"
   const filteredMovies = useMemo(() => {
     let result = [...movies];
 
-    // Filtro por Aba
     if (activeTab === 'favorites') {
       result = result.filter((m) => favoriteMovieIds.has(m.id));
     } else if (activeTab === 'comments') {
       result = result.filter((m) => Boolean(commentsCountByMovie[m.id]));
     }
 
-    // Filtro por Busca de Texto
+    if (activeGenre !== 'Todos') {
+      result = result.filter((m) => {
+        const title = (m.title || '').toLowerCase();
+        const overview = (m.overview || '').toLowerCase();
+        const char = (m.character || '').toLowerCase();
+        const genreTerm = activeGenre.toLowerCase();
+        return title.includes(genreTerm) || overview.includes(genreTerm) || char.includes(genreTerm);
+      });
+    }
+
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       result = result.filter(
         (m) =>
-          m.title.toLowerCase().includes(q) ||
+          (m.title && m.title.toLowerCase().includes(q)) ||
           (m.character && m.character.toLowerCase().includes(q)) ||
-          (m.release_year && m.release_year.includes(q)) ||
+          (m.release_year && String(m.release_year).includes(q)) ||
           (m.overview && m.overview.toLowerCase().includes(q))
       );
     }
 
-    // Ordenação
     result.sort((a, b) => {
-      if (sortBy === 'popularity') {
-        return (b.popularity || 0) - (a.popularity || 0);
-      }
       if (sortBy === 'rating') {
         return (b.vote_average || 0) - (a.vote_average || 0);
       }
-      if (sortBy === 'year_desc') {
+      if (sortBy === 'year') {
         return (b.release_date || '').localeCompare(a.release_date || '');
       }
-      if (sortBy === 'year_asc') {
-        return (a.release_date || '').localeCompare(b.release_date || '');
-      }
-      if (sortBy === 'title_asc') {
-        return a.title.localeCompare(b.title);
+      if (sortBy === 'title') {
+        return (a.title || '').localeCompare(b.title || '');
       }
       return 0;
     });
 
     return result;
-  }, [movies, activeTab, searchQuery, sortBy, favoriteMovieIds, commentsCountByMovie]);
+  }, [movies, activeTab, activeGenre, searchQuery, sortBy, favoriteMovieIds, commentsCountByMovie]);
 
-  // Separação para visitantes: 6 primeiros filmes nas duas primeiras linhas e a 3ª linha com blur (+3 filmes)
-  const visibleMovies = useMemo(() => {
+  // Separação do Modo Visitante: 6 primeiros filmes nas 2 primeiras linhas, 3ª linha com blur (+3 filmes)
+  const visibleGridMovies = useMemo(() => {
     return user ? filteredMovies : filteredMovies.slice(0, 6);
   }, [user, filteredMovies]);
 
@@ -225,16 +240,16 @@ export default function App() {
       return;
     }
     setActiveTab(tab);
+    setCurrentView('catalog');
   };
 
-  // Se houver um token na URL, mostra a tela de redefinir senha
+  // Se houver token na URL para recuperação de senha
   if (resetToken && !user) {
     return (
       <>
         <ResetPasswordModal 
           token={resetToken} 
           onSuccess={() => {
-            // Remove o token da URL e do estado
             window.history.replaceState({}, document.title, window.location.pathname);
             setResetToken(null);
           }} 
@@ -245,19 +260,33 @@ export default function App() {
     );
   }
 
+  const isSearching = searchQuery.trim().length > 0;
+
   return (
-    <div className="app-container">
+    <div className="cinefilia-app-container">
+      {/* Navbar Fixa Cinefilia com Efeito Vidro */}
       <Navbar 
         user={user} 
         onLogout={handleLogout} 
         currentView={currentView}
         onOpenAdmin={() => setCurrentView((prev) => (prev === 'admin' ? 'catalog' : 'admin'))}
         onOpenAuth={(tab) => setAuthModalState({ isOpen: true, initialTab: tab })}
+        activeTab={activeTab}
+        onSelectTab={handleTabSelect}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        onHome={() => {
+          setActiveTab('all');
+          setActiveGenre('Todos');
+          setSearchQuery('');
+          setCurrentView('catalog');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
       />
 
-      {/* SE FOR VISÃO DE ADMIN: RENDERIZA A NOVA PÁGINA COM TODOS OS USUÁRIOS E COMENTÁRIOS */}
+      {/* Visão de Administração (RBAC) */}
       {currentView === 'admin' && user?.papel === 'admin' ? (
-        <main className="main-content">
+        <main className="cinefilia-main-body pt-16">
           <AdminDashboard 
             user={user} 
             onBack={() => setCurrentView('catalog')} 
@@ -265,197 +294,288 @@ export default function App() {
           />
         </main>
       ) : (
-        <main className="main-content">
-          {/* HERO SECTION */}
-          <section className="hero-section">
-            <div className="hero-badge">
-              <span>{user ? '✨ Filmografia Completa TMDB' : '✨ Modo Degustação Aberta • Filmografia TMDB'}</span>
-            </div>
-            <h2 className="hero-title">Tom Hanks Film Collection</h2>
-            <p className="hero-subtitle">
-              {user
-                ? 'Explore grandes clássicos e produções do premiado ator. Salve seus filmes favoritos e registre anotações pessoais com dados isolados exclusivamente na sua conta.'
-                : 'Explore grandes clássicos e produções premiadas com dados em tempo real do TMDB. Você está na prévia de degustação — navegue pelas obras abaixo ou cadastre-se gratuitamente para desbloquear toda a coleção, favoritar e comentar!'}
-            </p>
-          </section>
+        <main className="cinefilia-main-body">
+          {/* =========================================================
+              HERO SECTION CINEMÁTICO (520px com degradê duplo)
+              ========================================================= */}
+          {!isSearching && activeTab === 'all' && heroMovie && (
+            <section className="cinefilia-hero">
+              <img
+                src={heroMovie.backdrop_url || heroMovie.poster_url}
+                alt={heroMovie.title}
+                className="hero-backdrop-media"
+              />
+              <div className="hero-gradient-vertical" />
+              <div className="hero-gradient-horizontal" />
 
-          {/* CONTROLES, ABAS E BUSCA */}
-          <section className={`controls-container ${isControlsSticky ? 'is-sticky' : ''}`}>
-            <div className="controls-row">
-              <div className="filter-tabs">
-                <button
-                  className={`tab-btn ${activeTab === 'all' ? 'active' : ''}`}
-                  onClick={() => handleTabSelect('all')}
-                >
-                  <span>Todos os Filmes</span>
-                  <span className="tab-count">{movies.length}</span>
-                </button>
-
-                <button
-                  className={`tab-btn ${activeTab === 'favorites' ? 'active' : ''}`}
-                  onClick={() => handleTabSelect('favorites')}
-                  title={!user ? 'Crie uma conta para salvar favoritos' : 'Filmes favoritados'}
-                >
-                  <span>Meus Favoritos</span>
-                  <span className="tab-count">{user ? favorites.length : '🔒'}</span>
-                </button>
-
-                <button
-                  className={`tab-btn ${activeTab === 'comments' ? 'active' : ''}`}
-                  onClick={() => handleTabSelect('comments')}
-                  title={!user ? 'Crie uma conta para fazer anotações' : 'Filmes comentados'}
-                >
-                  <span>Comentados</span>
-                  <span className="tab-count">{user ? Object.keys(commentsCountByMovie).length : '🔒'}</span>
-                </button>
-              </div>
-
-              <div className="search-and-sort">
-                <div className="search-box">
-                  <svg className="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                  </svg>
-                  <input
-                    type="text"
-                    className="search-input"
-                    placeholder="Buscar por título, papel ou ano..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
+              <div className="hero-content-box">
+                <div className="hero-tags-meta">
+                  <span className="hero-genre-tag">CLÁSSICO</span>
+                  <span className="hero-meta-detail">
+                    {heroMovie.release_year} · Estrelando Tom Hanks
+                  </span>
                 </div>
 
-                <select
-                  className="sort-select"
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                >
-                  <option value="popularity">Mais Populares</option>
-                  <option value="rating">Melhor Avaliados</option>
-                  <option value="year_desc">Mais Recentes</option>
-                  <option value="year_asc">Mais Antigos</option>
-                  <option value="title_asc">Ordem Alfabética (A-Z)</option>
-                </select>
-              </div>
-            </div>
-          </section>
+                <h1 className="hero-main-title">{heroMovie.title}</h1>
 
-          {/* ERROS / LOADERS */}
-          {error && (
-            <div className="empty-state" style={{ borderColor: 'rgba(239, 68, 68, 0.4)' }}>
-              <div className="empty-icon" style={{ color: 'var(--accent-red)' }}>⚠️</div>
-              <h3>Não foi possível carregar os filmes</h3>
-              <p>{error}</p>
-              <button className="btn-auth-submit" style={{ maxWidth: '200px', margin: '0 auto' }} onClick={loadInitialData}>
-                Tentar Novamente
-              </button>
-            </div>
-          )}
+                <p className="hero-director-text">
+                  Papel: <span>{heroMovie.character || 'Tom Hanks'}</span>
+                </p>
 
-          {loading && (
-            <div style={{ textAlign: 'center', padding: '4rem 1rem' }}>
-              <div className="spinner"></div>
-              <p style={{ color: 'var(--text-secondary)' }}>Carregando filmografia ao vivo do TMDB...</p>
-            </div>
-          )}
-
-          {/* LISTA / GRID DE FILMES */}
-          {!loading && !error && (
-            <>
-              {visibleMovies.length === 0 ? (
-                <div className="empty-state">
-                  <div className="empty-icon">🎬</div>
-                  <h3>Nenhum filme encontrado</h3>
-                  <p>
-                    {activeTab === 'favorites'
-                      ? 'Você ainda não favoritou nenhum filme. Clique no ícone de coração nos cards para adicionar aos favoritos!'
-                      : activeTab === 'comments'
-                      ? 'Você ainda não escreveu comentários em nenhum filme. Abra um filme para deixar suas anotações!'
-                      : 'Nenhum resultado corresponde à sua pesquisa. Tente outros termos de busca.'}
-                  </p>
-                  {(activeTab !== 'all' || searchQuery) && (
-                    <button
-                      className="tab-btn active"
-                      style={{ margin: '0 auto' }}
-                      onClick={() => { setActiveTab('all'); setSearchQuery(''); }}
-                    >
-                      Ver Todos os Filmes
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <>
-                  {/* LINHAS NÍTIDAS (AS 2 PRIMEIRAS LINHAS / 6 FILMES NO MODO VISITANTE) */}
-                  <div className="movies-grid">
-                    {visibleMovies.map((movie) => (
-                      <MovieCard
-                        key={movie.id}
-                        movie={movie}
-                        isFavorite={favoriteMovieIds.has(movie.id)}
-                        commentCount={commentsCountByMovie[movie.id] || 0}
-                        onToggleFavorite={handleToggleFavorite}
-                        onOpenDetails={(m) => setSelectedMovie(m)}
-                      />
+                <div className="hero-rating-stars-row">
+                  <div className="stars-cluster">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <svg key={s} width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <polygon
+                          points="8,1 10,6 15.5,6.5 11.5,10 13,15.5 8,12.5 3,15.5 4.5,10 0.5,6.5 6,6"
+                          fill={s <= Math.round((heroMovie.vote_average || 0) / 2) ? '#FF9010' : 'none'}
+                          stroke={s <= Math.round((heroMovie.vote_average || 0) / 2) ? '#FF9010' : '#3A4555'}
+                          strokeWidth="1"
+                        />
+                      </svg>
                     ))}
                   </div>
+                  <span className="hero-rating-badge">★ {(heroMovie.vote_average || 0).toFixed(1)}</span>
+                </div>
 
-                  {/* TERCEIRA LINHA COM EFEITO BLUR E BLOQUEIO DE DEGUSTAÇÃO (MODO VISITANTE) */}
-                  {!user && lockedRowMovies.length > 0 && (
-                    <div className="preview-locked-container">
-                      <div className="movies-grid preview-blurred-grid" aria-hidden="true">
-                        {lockedRowMovies.map((movie) => (
-                          <MovieCard
-                            key={movie.id}
-                            movie={movie}
-                            isFavorite={false}
-                            commentCount={0}
-                            onToggleFavorite={() => handleRequireAuth('favorite', movie.title)}
-                            onOpenDetails={() => handleRequireAuth('favorite', movie.title)}
-                          />
-                        ))}
-                      </div>
+                <p className="hero-synopsis-snippet">
+                  {heroMovie.overview ? heroMovie.overview.slice(0, 150) + '…' : 'Explore a rica trajetória de Tom Hanks no cinema.'}
+                </p>
 
-                      <div className="preview-locked-overlay">
-                        <div className="preview-locked-content">
-                          <div className="preview-lock-badge">
-                            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                            </svg>
-                          </div>
-                          <h3 className="preview-locked-title">Desbloqueie a Coleção Completa (+60 Filmes)</h3>
-                          <p className="preview-locked-desc">
-                            Você chegou ao limite da degustação. Crie sua conta gratuita em poucos segundos para explorar a filmografia completa, salvar seus títulos favoritos e registrar anotações exclusivas no seu banco individual.
-                          </p>
-                          <div className="preview-locked-btn-group">
-                            <button
-                              className="btn-preview-cta-register"
-                              onClick={() => setAuthModalState({ isOpen: true, initialTab: 'register' })}
-                            >
-                              <span>Criar Conta Gratuita</span>
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <polyline points="9 18 15 12 9 6"></polyline>
+                <div className="hero-action-buttons">
+                  <button
+                    type="button"
+                    className="btn-hero-primary"
+                    onClick={() => setSelectedMovie(heroMovie)}
+                  >
+                    Ver Detalhes
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn-hero-secondary"
+                    onClick={() => handleToggleFavorite(heroMovie)}
+                  >
+                    {favoriteMovieIds.has(heroMovie.id) ? '✓ Nos Favoritos' : '+ Favoritos'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Marca d'água lateral vertical */}
+              <div className="hero-vertical-watermark">
+                {heroMovie.title} ({heroMovie.release_year})
+              </div>
+            </section>
+          )}
+
+          {/* =========================================================
+              CARROSSÉIS HORIZONTAIS (Estilo Cinefilia / Letterboxd)
+              ========================================================= */}
+          {!isSearching && activeTab === 'all' && (
+            <div className="carousels-container">
+              <Carousel
+                title="🔥 Em Alta"
+                movies={popularMovies}
+                favoriteMovieIds={favoriteMovieIds}
+                commentsCountByMovie={commentsCountByMovie}
+                onSelect={setSelectedMovie}
+                onToggleFavorite={handleToggleFavorite}
+                onToggleWatched={handleToggleFavorite}
+                onToggleWatchlist={(m) => handleRequireAuth('favorite', m.title)}
+              />
+
+              <Carousel
+                title="🆕 Mais Recentes"
+                movies={recentMovies}
+                favoriteMovieIds={favoriteMovieIds}
+                commentsCountByMovie={commentsCountByMovie}
+                onSelect={setSelectedMovie}
+                onToggleFavorite={handleToggleFavorite}
+                onToggleWatched={handleToggleFavorite}
+                onToggleWatchlist={(m) => handleRequireAuth('favorite', m.title)}
+              />
+
+              <Carousel
+                title="⭐ Mais Bem Avaliados"
+                movies={topRatedMovies}
+                favoriteMovieIds={favoriteMovieIds}
+                commentsCountByMovie={commentsCountByMovie}
+                onSelect={setSelectedMovie}
+                onToggleFavorite={handleToggleFavorite}
+                onToggleWatched={handleToggleFavorite}
+                onToggleWatchlist={(m) => handleRequireAuth('favorite', m.title)}
+              />
+
+              <div className="section-divider-line" />
+            </div>
+          )}
+
+          {/* =========================================================
+              SEÇÃO COMPLETA: TODOS OS FILMES / FILTROS E GRID
+              ========================================================= */}
+          <section className="filter-grid-section">
+            <div className="filter-grid-header">
+              <h2 className="section-heading">
+                {isSearching
+                  ? `Resultados para "${searchQuery}"`
+                  : activeTab === 'favorites'
+                  ? 'Meus Filmes Favoritos'
+                  : activeTab === 'comments'
+                  ? 'Filmes com Anotações'
+                  : 'Todos os Filmes'}
+                <span className="results-counter">({filteredMovies.length})</span>
+              </h2>
+
+              {/* Botões de Ordenação em Pílula */}
+              <div className="sort-pills-group">
+                <span className="sort-label">Ordenar:</span>
+                {[
+                  { id: 'rating', label: 'Nota' },
+                  { id: 'year', label: 'Ano' },
+                  { id: 'title', label: 'Título' }
+                ].map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className={`btn-sort-pill ${sortBy === s.id ? 'active' : ''}`}
+                    onClick={() => setSortBy(s.id)}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Pílulas de Gênero */}
+            {!isSearching && activeTab === 'all' && (
+              <div className="genre-pills-scroll">
+                {GENRES.map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    className={`btn-genre-pill ${activeGenre === g ? 'active' : ''}`}
+                    onClick={() => setActiveGenre(g)}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Loaders e Erros */}
+            {loading && (
+              <div className="loader-box">
+                <div className="cinefilia-spinner" />
+                <p>Carregando filmografia ao vivo do TMDB...</p>
+              </div>
+            )}
+
+            {error && (
+              <div className="error-card-state">
+                <span className="error-icon">⚠️</span>
+                <h3>Erro ao carregar filmes</h3>
+                <p>{error}</p>
+                <button type="button" className="btn-hero-primary" onClick={loadInitialData}>
+                  Tentar Novamente
+                </button>
+              </div>
+            )}
+
+            {/* Grade de Filmes */}
+            {!loading && !error && (
+              <>
+                {visibleGridMovies.length === 0 ? (
+                  <div className="empty-catalog-state">
+                    <p className="empty-message">Nenhum filme encontrado nesta categoria ou pesquisa.</p>
+                    <button
+                      type="button"
+                      className="btn-sort-pill active"
+                      onClick={() => {
+                        setActiveTab('all');
+                        setActiveGenre('Todos');
+                        setSearchQuery('');
+                      }}
+                    >
+                      Limpar Filtros
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="cinefilia-poster-grid">
+                      {visibleGridMovies.map((movie) => (
+                        <MovieCard
+                          key={movie.id}
+                          movie={movie}
+                          isFavorite={favoriteMovieIds.has(movie.id)}
+                          commentCount={commentsCountByMovie[movie.id] || 0}
+                          onToggleFavorite={handleToggleFavorite}
+                          onToggleWatched={handleToggleFavorite}
+                          onToggleWatchlist={(m) => handleRequireAuth('favorite', m.title)}
+                          onOpenDetails={setSelectedMovie}
+                        />
+                      ))}
+                    </div>
+
+                    {/* TERCEIRA LINHA COM BLUR E OVERLAY DE DEGUSTAÇÃO (MODO VISITANTE) */}
+                    {!user && lockedRowMovies.length > 0 && (
+                      <div className="preview-locked-container">
+                        <div className="cinefilia-poster-grid preview-blurred-grid" aria-hidden="true">
+                          {lockedRowMovies.map((movie) => (
+                            <MovieCard
+                              key={movie.id}
+                              movie={movie}
+                              isFavorite={false}
+                              commentCount={0}
+                              onToggleFavorite={() => handleRequireAuth('favorite', movie.title)}
+                              onOpenDetails={() => handleRequireAuth('favorite', movie.title)}
+                            />
+                          ))}
+                        </div>
+
+                        <div className="preview-locked-overlay">
+                          <div className="preview-locked-content">
+                            <div className="preview-lock-badge">
+                              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                               </svg>
-                            </button>
-                            <button
-                              className="btn-preview-cta-login"
-                              onClick={() => setAuthModalState({ isOpen: true, initialTab: 'login' })}
-                            >
-                              Já sou cadastrado / Entrar
-                            </button>
+                            </div>
+                            <h3 className="preview-locked-title">Desbloqueie a Coleção Completa (+60 Obras)</h3>
+                            <p className="preview-locked-desc">
+                              Você está na degustação. Crie sua conta gratuita em poucos segundos para explorar a filmografia completa, salvar seus títulos favoritos e registrar anotações exclusivas no seu banco individual.
+                            </p>
+                            <div className="preview-locked-btn-group">
+                              <button
+                                type="button"
+                                className="btn-preview-cta-register"
+                                onClick={() => setAuthModalState({ isOpen: true, initialTab: 'register' })}
+                              >
+                                <span>Criar Conta Gratuita</span>
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <polyline points="9 18 15 12 9 6"></polyline>
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-preview-cta-login"
+                                onClick={() => setAuthModalState({ isOpen: true, initialTab: 'login' })}
+                              >
+                                Já sou cadastrado / Entrar
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </>
-          )}
+                    )}
+                  </>
+                )}
+              </>
+            )}
+          </section>
         </main>
       )}
 
-      {/* MODAL DE DETALHES E COMENTÁRIOS */}
+      {/* MODAL COMPLETO DE DETALHES DO FILME */}
       {selectedMovie && (
         <MovieDetailModal
           movie={selectedMovie}
@@ -478,7 +598,7 @@ export default function App() {
         onOpenAuth={(tab) => setAuthModalState({ isOpen: true, initialTab: tab })}
       />
 
-      {/* MODAL DE AUTENTICAÇÃO (LOGIN / CADASTRO / RECUPERAÇÃO) */}
+      {/* MODAL DE AUTENTICAÇÃO (LOGIN / CADASTRO / OTP / RECUPERAÇÃO) */}
       {authModalState.isOpen && (
         <AuthModal
           initialTab={authModalState.initialTab}
@@ -492,16 +612,16 @@ export default function App() {
       )}
 
       {/* FOOTER */}
-      <footer className="app-footer">
+      <footer className="cinefilia-footer">
         <p>
-          Catálogo de Filmes — Tom Hanks • Desenvolvido para a disciplina de <strong>Computação em Nuvem</strong> lecionada pelo professor <strong>@siriani</strong>.
+          Cinefilia · Filmografia de Tom Hanks · Desenvolvido para a disciplina de <strong>Computação em Nuvem</strong> lecionada pelo professor <strong>@siriani</strong>.
         </p>
-        <p style={{ marginTop: '0.35rem', opacity: 0.7 }}>
-          Dados e imagens fornecidos ao vivo pela API do TMDB (The Movie Database). Persistência individual no MariaDB.
+        <p className="footer-subtext">
+          Dados e imagens fornecidos ao vivo pelo TMDB (The Movie Database). Persistência e segurança isoladas no MariaDB.
         </p>
       </footer>
 
-      {/* TOAST ALERTS */}
+      {/* TOAST NOTIFICAÇÕES */}
       <Toast toast={toast} onClose={() => setToast(null)} />
     </div>
   );
