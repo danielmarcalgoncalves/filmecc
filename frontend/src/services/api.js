@@ -216,10 +216,10 @@ export const api = {
       });
     },
 
-    async create(nome, descricao) {
+    async create(nome, descricao, filmes = []) {
       return await apiRequest('/lists', {
         method: 'POST',
-        body: JSON.stringify({ nome, descricao })
+        body: JSON.stringify({ nome, descricao, filmes })
       });
     },
 

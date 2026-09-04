@@ -339,6 +339,7 @@ export default function App() {
         <main className="cinefilia-main-body pt-16">
           <ListsView
             user={user}
+            allMovies={movies}
             onShowToast={showToast}
             onSelectMovie={setSelectedMovie}
             onRequireAuth={handleRequireAuth}

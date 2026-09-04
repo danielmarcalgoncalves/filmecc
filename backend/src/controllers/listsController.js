@@ -241,7 +241,7 @@ async function createList(req, res) {
   try {
     const usuarioId = req.usuarioId;
     const papelUsuario = req.usuarioPapel || 'usuario';
-    const { nome, descricao } = req.body;
+    const { nome, descricao, filmes } = req.body;
 
     if (!nome || !nome.trim()) {
       return res.status(400).json({ error: 'Por favor, informe um título para a lista.' });
@@ -270,9 +270,26 @@ async function createList(req, res) {
       [usuarioId, nome.trim(), descricao ? descricao.trim() : null]
     );
 
+    const listaId = result.insertId;
+
+    // Se foram enviados filmes para a nova lista, insere-os
+    if (Array.isArray(filmes) && filmes.length > 0) {
+      for (const item of filmes) {
+        const movieId = item.id || item.tmdb_movie_id;
+        const title = item.title || item.titulo || 'Sem título';
+        const poster = item.poster_path || null;
+        if (movieId) {
+          await pool.query(
+            'INSERT IGNORE INTO itens_lista (lista_id, tmdb_movie_id, titulo, poster_path) VALUES (?, ?, ?, ?)',
+            [listaId, movieId, title, poster]
+          );
+        }
+      }
+    }
+
     const [novaLista] = await pool.query(
       'SELECT id, usuario_id, nome, descricao, is_watchlist, criado_em FROM listas WHERE id = ?',
-      [result.insertId]
+      [listaId]
     );
 
     return res.status(201).json({
@@ -280,7 +297,7 @@ async function createList(req, res) {
       lista: {
         ...novaLista[0],
         is_watchlist: false,
-        total_filmes: 0,
+        total_filmes: Array.isArray(filmes) ? filmes.length : 0,
         posters: []
       }
     });
