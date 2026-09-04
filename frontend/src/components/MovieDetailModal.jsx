@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
 
 export default function MovieDetailModal({
@@ -11,10 +11,34 @@ export default function MovieDetailModal({
   onCommentChanged,
   onRequireAuth
 }) {
+  const modalScrollRef = useRef(null);
   const [comments, setComments] = useState([]);
   const [newCommentText, setNewCommentText] = useState('');
   const [loadingComments, setLoadingComments] = useState(Boolean(user));
   const [submittingComment, setSubmittingComment] = useState(false);
+
+  // Trava a rolagem da página inicial ao abrir o modal e reseta para o topo
+  useEffect(() => {
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    if (modalScrollRef.current) {
+      modalScrollRef.current.scrollTop = 0;
+    }
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalBodyOverflow;
+      document.documentElement.style.overflow = originalHtmlOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [movie, onClose]);
 
   // Estado local para avaliação pessoal (estrelas de 1 a 5)
   const [userRating, setUserRating] = useState(() => {
@@ -131,7 +155,7 @@ export default function MovieDetailModal({
   ];
 
   return (
-    <div className="cinefilia-detail-modal-backdrop" onClick={onClose}>
+    <div className="cinefilia-detail-modal-backdrop" ref={modalScrollRef} onClick={onClose}>
       <div className="cinefilia-detail-modal-card" onClick={(e) => e.stopPropagation()}>
         {/* Backdrop Cinematográfico Superior (440px) */}
         <div
@@ -464,7 +488,7 @@ export default function MovieDetailModal({
                                   )}
                                 </div>
                               </div>
-                              <p className="comment-body-text">{c.conteudo}</p>
+                              <p className="comment-body-text">{c.texto || c.conteudo}</p>
                             </div>
                           );
                         })
