@@ -8,18 +8,22 @@ export default function MovieDetailModal({
   onToggleFavorite,
   onClose,
   onShowToast,
-  onCommentChanged
+  onCommentChanged,
+  onRequireAuth
 }) {
   const [comments, setComments] = useState([]);
   const [newCommentText, setNewCommentText] = useState('');
-  const [loadingComments, setLoadingComments] = useState(true);
+  const [loadingComments, setLoadingComments] = useState(Boolean(user));
   const [submittingComment, setSubmittingComment] = useState(false);
 
   useEffect(() => {
-    if (movie) {
+    if (movie && user) {
       loadComments();
+    } else {
+      setLoadingComments(false);
+      setComments([]);
     }
-  }, [movie]);
+  }, [movie, user]);
 
   const loadComments = async () => {
     setLoadingComments(true);
@@ -160,25 +164,50 @@ export default function MovieDetailModal({
               Meus Comentários &amp; Anotações
             </h3>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.825rem', marginBottom: '1rem' }}>
-              🔒 Visíveis exclusivamente na sua conta ({user?.email}) e salvos no seu banco individual.
+              🔒 {user ? `Visíveis exclusivamente na sua conta (${user.email}) e salvos no seu banco individual.` : 'Recurso restrito a usuários cadastrados.'}
             </p>
 
-            <form className="comment-form" onSubmit={handleAddComment}>
-              <textarea
-                className="comment-textarea"
-                placeholder="Escreva suas impressões, crítica ou anotação pessoal sobre este filme..."
-                value={newCommentText}
-                onChange={(e) => setNewCommentText(e.target.value)}
-                required
-              />
-              <button
-                type="submit"
-                className="btn-submit-comment"
-                disabled={submittingComment || !newCommentText.trim()}
-              >
-                {submittingComment ? 'Salvando...' : 'Publicar Comentário'}
-              </button>
-            </form>
+            {!user ? (
+              <div className="comments-locked-box">
+                <div className="locked-badge-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                  </svg>
+                </div>
+                <h4>Anotações e Comentários Bloqueados</h4>
+                <p>
+                  Faça login ou crie sua conta gratuita para registrar impressões pessoais e salvar suas críticas neste filme.
+                </p>
+                <button
+                  type="button"
+                  className="btn-locked-comment-cta"
+                  onClick={() => onRequireAuth && onRequireAuth('comment', movie.title)}
+                >
+                  <span>Entrar ou Criar Conta para Comentar</span>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <form className="comment-form" onSubmit={handleAddComment}>
+                <textarea
+                  className="comment-textarea"
+                  placeholder="Escreva suas impressões, crítica ou anotação pessoal sobre este filme..."
+                  value={newCommentText}
+                  onChange={(e) => setNewCommentText(e.target.value)}
+                  required
+                />
+                <button
+                  type="submit"
+                  className="btn-submit-comment"
+                  disabled={submittingComment || !newCommentText.trim()}
+                >
+                  {submittingComment ? 'Salvando...' : 'Publicar Comentário'}
+                </button>
+              </form>
+            )}
 
             <div className="comments-list">
               {loadingComments ? (

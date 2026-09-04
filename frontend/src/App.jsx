@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Navbar from './components/Navbar';
 import AuthModal from './components/AuthModal';
+import GuestActionModal from './components/GuestActionModal';
 import MovieCard from './components/MovieCard';
 import MovieDetailModal from './components/MovieDetailModal';
 import ResetPasswordModal from './components/ResetPasswordModal';
@@ -16,6 +17,10 @@ export default function App() {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  // Modais de Autenticação e Ação de Visitante
+  const [authModalState, setAuthModalState] = useState({ isOpen: false, initialTab: 'login' });
+  const [guestActionModal, setGuestActionModal] = useState({ isOpen: false, type: 'favorite', movieTitle: '' });
 
   // Filtros e Navegação
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'favorites' | 'comments'
@@ -46,29 +51,31 @@ export default function App() {
     setToast({ message, type });
   };
 
-  // Carrega os dados quando o usuário está autenticado
+  // Carrega os dados da filmografia e dados isolados do usuário se logado
   useEffect(() => {
-    if (user) {
-      loadInitialData();
-    }
+    loadInitialData();
   }, [user]);
 
   const loadInitialData = async () => {
     setLoading(true);
     setError(null);
     try {
-      // 1. Busca filmes do Tom Hanks na API do TMDB
+      // 1. Busca filmes do Tom Hanks na API do TMDB (rota pública)
       const moviesRes = await api.movies.getTomHanks();
       setMovies(moviesRes.movies || []);
 
-      // 2. Busca favoritos e comentários do usuário atual no MariaDB
-      const [favsRes, commsRes] = await Promise.all([
-        api.favorites.getAll(),
-        api.comments.getAll()
-      ]);
-
-      setFavorites(favsRes.favoritos || []);
-      setComments(commsRes.comentarios || []);
+      // 2. Se houver usuário autenticado, busca favoritos e comentários do MariaDB
+      if (user) {
+        const [favsRes, commsRes] = await Promise.all([
+          api.favorites.getAll(),
+          api.comments.getAll()
+        ]);
+        setFavorites(favsRes.favoritos || []);
+        setComments(commsRes.comentarios || []);
+      } else {
+        setFavorites([]);
+        setComments([]);
+      }
     } catch (err) {
       console.error('Erro ao carregar dados:', err);
       setError(err.message || 'Erro ao comunicar com o servidor.');
@@ -78,6 +85,7 @@ export default function App() {
   };
 
   const handleReloadUserData = async () => {
+    if (!user) return;
     try {
       const [favsRes, commsRes] = await Promise.all([
         api.favorites.getAll(),
@@ -93,15 +101,29 @@ export default function App() {
   const handleLogout = () => {
     api.auth.logout();
     setUser(null);
-    setMovies([]);
     setFavorites([]);
     setComments([]);
     setSelectedMovie(null);
+    setCurrentView('catalog');
     showToast('Sessão encerrada com sucesso.', 'success');
+  };
+
+  // Aciona o pop-up de aviso para visitantes quando tentam curtir ou comentar
+  const handleRequireAuth = (type = 'favorite', movieTitle = '') => {
+    setGuestActionModal({
+      isOpen: true,
+      type,
+      movieTitle: movieTitle || ''
+    });
   };
 
   // Adiciona ou remove filme dos favoritos
   const handleToggleFavorite = async (movie) => {
+    if (!user) {
+      handleRequireAuth('favorite', movie?.title);
+      return;
+    }
+
     const isFav = favorites.some((f) => f.tmdb_movie_id === movie.id);
 
     try {
@@ -188,6 +210,23 @@ export default function App() {
     return result;
   }, [movies, activeTab, searchQuery, sortBy, favoriteMovieIds, commentsCountByMovie]);
 
+  // Separação para visitantes: 6 primeiros filmes nas duas primeiras linhas e a 3ª linha com blur (+3 filmes)
+  const visibleMovies = useMemo(() => {
+    return user ? filteredMovies : filteredMovies.slice(0, 6);
+  }, [user, filteredMovies]);
+
+  const lockedRowMovies = useMemo(() => {
+    return !user ? filteredMovies.slice(6, 9) : [];
+  }, [user, filteredMovies]);
+
+  const handleTabSelect = (tab) => {
+    if (!user && (tab === 'favorites' || tab === 'comments')) {
+      handleRequireAuth(tab === 'favorites' ? 'favorite' : 'comment');
+      return;
+    }
+    setActiveTab(tab);
+  };
+
   // Se houver um token na URL, mostra a tela de redefinir senha
   if (resetToken && !user) {
     return (
@@ -206,16 +245,6 @@ export default function App() {
     );
   }
 
-  // Se não estiver autenticado e não tiver token, exibe a tela de login/cadastro
-  if (!user) {
-    return (
-      <>
-        <AuthModal onAuthSuccess={setUser} onShowToast={showToast} />
-        <Toast toast={toast} onClose={() => setToast(null)} />
-      </>
-    );
-  }
-
   return (
     <div className="app-container">
       <Navbar 
@@ -223,6 +252,7 @@ export default function App() {
         onLogout={handleLogout} 
         currentView={currentView}
         onOpenAdmin={() => setCurrentView((prev) => (prev === 'admin' ? 'catalog' : 'admin'))}
+        onOpenAuth={(tab) => setAuthModalState({ isOpen: true, initialTab: tab })}
       />
 
       {/* SE FOR VISÃO DE ADMIN: RENDERIZA A NOVA PÁGINA COM TODOS OS USUÁRIOS E COMENTÁRIOS */}
@@ -239,133 +269,190 @@ export default function App() {
           {/* HERO SECTION */}
           <section className="hero-section">
             <div className="hero-badge">
-              <span>✨ Filmografia Completa TMDB</span>
+              <span>{user ? '✨ Filmografia Completa TMDB' : '✨ Modo Degustação Aberta • Filmografia TMDB'}</span>
             </div>
             <h2 className="hero-title">Tom Hanks Film Collection</h2>
             <p className="hero-subtitle">
-              Explore grandes clássicos e produções do premiado ator. Salve seus filmes favoritos e registre anotações pessoais com dados isolados exclusivamente na sua conta.
+              {user
+                ? 'Explore grandes clássicos e produções do premiado ator. Salve seus filmes favoritos e registre anotações pessoais com dados isolados exclusivamente na sua conta.'
+                : 'Explore grandes clássicos e produções premiadas com dados em tempo real do TMDB. Você está na prévia de degustação — navegue pelas obras abaixo ou cadastre-se gratuitamente para desbloquear toda a coleção, favoritar e comentar!'}
             </p>
           </section>
 
-        {/* CONTROLES, ABAS E BUSCA */}
-        <section className={`controls-container ${isControlsSticky ? 'is-sticky' : ''}`}>
-          <div className="controls-row">
-            <div className="filter-tabs">
-              <button
-                className={`tab-btn ${activeTab === 'all' ? 'active' : ''}`}
-                onClick={() => setActiveTab('all')}
-              >
-                <span>Todos os Filmes</span>
-                <span className="tab-count">{movies.length}</span>
-              </button>
+          {/* CONTROLES, ABAS E BUSCA */}
+          <section className={`controls-container ${isControlsSticky ? 'is-sticky' : ''}`}>
+            <div className="controls-row">
+              <div className="filter-tabs">
+                <button
+                  className={`tab-btn ${activeTab === 'all' ? 'active' : ''}`}
+                  onClick={() => handleTabSelect('all')}
+                >
+                  <span>Todos os Filmes</span>
+                  <span className="tab-count">{movies.length}</span>
+                </button>
 
-              <button
-                className={`tab-btn ${activeTab === 'favorites' ? 'active' : ''}`}
-                onClick={() => setActiveTab('favorites')}
-              >
-                <span>Meus Favoritos</span>
-                <span className="tab-count">{favorites.length}</span>
-              </button>
+                <button
+                  className={`tab-btn ${activeTab === 'favorites' ? 'active' : ''}`}
+                  onClick={() => handleTabSelect('favorites')}
+                  title={!user ? 'Crie uma conta para salvar favoritos' : 'Filmes favoritados'}
+                >
+                  <span>Meus Favoritos</span>
+                  <span className="tab-count">{user ? favorites.length : '🔒'}</span>
+                </button>
 
-              <button
-                className={`tab-btn ${activeTab === 'comments' ? 'active' : ''}`}
-                onClick={() => setActiveTab('comments')}
-              >
-                <span>Comentados</span>
-                <span className="tab-count">{Object.keys(commentsCountByMovie).length}</span>
-              </button>
-            </div>
-
-            <div className="search-and-sort">
-              <div className="search-box">
-                <svg className="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
-                <input
-                  type="text"
-                  className="search-input"
-                  placeholder="Buscar por título, papel ou ano..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
+                <button
+                  className={`tab-btn ${activeTab === 'comments' ? 'active' : ''}`}
+                  onClick={() => handleTabSelect('comments')}
+                  title={!user ? 'Crie uma conta para fazer anotações' : 'Filmes comentados'}
+                >
+                  <span>Comentados</span>
+                  <span className="tab-count">{user ? Object.keys(commentsCountByMovie).length : '🔒'}</span>
+                </button>
               </div>
 
-              <select
-                className="sort-select"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-              >
-                <option value="popularity">Mais Populares</option>
-                <option value="rating">Melhor Avaliados</option>
-                <option value="year_desc">Mais Recentes</option>
-                <option value="year_asc">Mais Antigos</option>
-                <option value="title_asc">Ordem Alfabética (A-Z)</option>
-              </select>
-            </div>
-          </div>
-        </section>
-
-        {/* ERROS / LOADERS */}
-        {error && (
-          <div className="empty-state" style={{ borderColor: 'rgba(239, 68, 68, 0.4)' }}>
-            <div className="empty-icon" style={{ color: 'var(--accent-red)' }}>⚠️</div>
-            <h3>Não foi possível carregar os filmes</h3>
-            <p>{error}</p>
-            <button className="btn-auth-submit" style={{ maxWidth: '200px', margin: '0 auto' }} onClick={loadInitialData}>
-              Tentar Novamente
-            </button>
-          </div>
-        )}
-
-        {loading && (
-          <div style={{ textAlign: 'center', padding: '4rem 1rem' }}>
-            <div className="spinner"></div>
-            <p style={{ color: 'var(--text-secondary)' }}>Carregando filmografia ao vivo do TMDB...</p>
-          </div>
-        )}
-
-        {/* LISTA / GRID DE FILMES */}
-        {!loading && !error && (
-          <>
-            {filteredMovies.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-icon">🎬</div>
-                <h3>Nenhum filme encontrado</h3>
-                <p>
-                  {activeTab === 'favorites'
-                    ? 'Você ainda não favoritou nenhum filme. Clique no ícone de coração nos cards para adicionar aos favoritos!'
-                    : activeTab === 'comments'
-                    ? 'Você ainda não escreveu comentários em nenhum filme. Abra um filme para deixar suas anotações!'
-                    : 'Nenhum resultado corresponde à sua pesquisa. Tente outros termos de busca.'}
-                </p>
-                {(activeTab !== 'all' || searchQuery) && (
-                  <button
-                    className="tab-btn active"
-                    style={{ margin: '0 auto' }}
-                    onClick={() => { setActiveTab('all'); setSearchQuery(''); }}
-                  >
-                    Ver Todos os Filmes
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="movies-grid">
-                {filteredMovies.map((movie) => (
-                  <MovieCard
-                    key={movie.id}
-                    movie={movie}
-                    isFavorite={favoriteMovieIds.has(movie.id)}
-                    commentCount={commentsCountByMovie[movie.id] || 0}
-                    onToggleFavorite={handleToggleFavorite}
-                    onOpenDetails={(m) => setSelectedMovie(m)}
+              <div className="search-and-sort">
+                <div className="search-box">
+                  <svg className="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                  <input
+                    type="text"
+                    className="search-input"
+                    placeholder="Buscar por título, papel ou ano..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                   />
-                ))}
+                </div>
+
+                <select
+                  className="sort-select"
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                >
+                  <option value="popularity">Mais Populares</option>
+                  <option value="rating">Melhor Avaliados</option>
+                  <option value="year_desc">Mais Recentes</option>
+                  <option value="year_asc">Mais Antigos</option>
+                  <option value="title_asc">Ordem Alfabética (A-Z)</option>
+                </select>
               </div>
-            )}
-          </>
-        )}
-      </main>
+            </div>
+          </section>
+
+          {/* ERROS / LOADERS */}
+          {error && (
+            <div className="empty-state" style={{ borderColor: 'rgba(239, 68, 68, 0.4)' }}>
+              <div className="empty-icon" style={{ color: 'var(--accent-red)' }}>⚠️</div>
+              <h3>Não foi possível carregar os filmes</h3>
+              <p>{error}</p>
+              <button className="btn-auth-submit" style={{ maxWidth: '200px', margin: '0 auto' }} onClick={loadInitialData}>
+                Tentar Novamente
+              </button>
+            </div>
+          )}
+
+          {loading && (
+            <div style={{ textAlign: 'center', padding: '4rem 1rem' }}>
+              <div className="spinner"></div>
+              <p style={{ color: 'var(--text-secondary)' }}>Carregando filmografia ao vivo do TMDB...</p>
+            </div>
+          )}
+
+          {/* LISTA / GRID DE FILMES */}
+          {!loading && !error && (
+            <>
+              {visibleMovies.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-icon">🎬</div>
+                  <h3>Nenhum filme encontrado</h3>
+                  <p>
+                    {activeTab === 'favorites'
+                      ? 'Você ainda não favoritou nenhum filme. Clique no ícone de coração nos cards para adicionar aos favoritos!'
+                      : activeTab === 'comments'
+                      ? 'Você ainda não escreveu comentários em nenhum filme. Abra um filme para deixar suas anotações!'
+                      : 'Nenhum resultado corresponde à sua pesquisa. Tente outros termos de busca.'}
+                  </p>
+                  {(activeTab !== 'all' || searchQuery) && (
+                    <button
+                      className="tab-btn active"
+                      style={{ margin: '0 auto' }}
+                      onClick={() => { setActiveTab('all'); setSearchQuery(''); }}
+                    >
+                      Ver Todos os Filmes
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {/* LINHAS NÍTIDAS (AS 2 PRIMEIRAS LINHAS / 6 FILMES NO MODO VISITANTE) */}
+                  <div className="movies-grid">
+                    {visibleMovies.map((movie) => (
+                      <MovieCard
+                        key={movie.id}
+                        movie={movie}
+                        isFavorite={favoriteMovieIds.has(movie.id)}
+                        commentCount={commentsCountByMovie[movie.id] || 0}
+                        onToggleFavorite={handleToggleFavorite}
+                        onOpenDetails={(m) => setSelectedMovie(m)}
+                      />
+                    ))}
+                  </div>
+
+                  {/* TERCEIRA LINHA COM EFEITO BLUR E BLOQUEIO DE DEGUSTAÇÃO (MODO VISITANTE) */}
+                  {!user && lockedRowMovies.length > 0 && (
+                    <div className="preview-locked-container">
+                      <div className="movies-grid preview-blurred-grid" aria-hidden="true">
+                        {lockedRowMovies.map((movie) => (
+                          <MovieCard
+                            key={movie.id}
+                            movie={movie}
+                            isFavorite={false}
+                            commentCount={0}
+                            onToggleFavorite={() => handleRequireAuth('favorite', movie.title)}
+                            onOpenDetails={() => handleRequireAuth('favorite', movie.title)}
+                          />
+                        ))}
+                      </div>
+
+                      <div className="preview-locked-overlay">
+                        <div className="preview-locked-content">
+                          <div className="preview-lock-badge">
+                            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                            </svg>
+                          </div>
+                          <h3 className="preview-locked-title">Desbloqueie a Coleção Completa (+60 Filmes)</h3>
+                          <p className="preview-locked-desc">
+                            Você chegou ao limite da degustação. Crie sua conta gratuita em poucos segundos para explorar a filmografia completa, salvar seus títulos favoritos e registrar anotações exclusivas no seu banco individual.
+                          </p>
+                          <div className="preview-locked-btn-group">
+                            <button
+                              className="btn-preview-cta-register"
+                              onClick={() => setAuthModalState({ isOpen: true, initialTab: 'register' })}
+                            >
+                              <span>Criar Conta Gratuita</span>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                              </svg>
+                            </button>
+                            <button
+                              className="btn-preview-cta-login"
+                              onClick={() => setAuthModalState({ isOpen: true, initialTab: 'login' })}
+                            >
+                              Já sou cadastrado / Entrar
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </main>
       )}
 
       {/* MODAL DE DETALHES E COMENTÁRIOS */}
@@ -378,6 +465,29 @@ export default function App() {
           onClose={() => setSelectedMovie(null)}
           onShowToast={showToast}
           onCommentChanged={handleReloadUserData}
+          onRequireAuth={handleRequireAuth}
+        />
+      )}
+
+      {/* POP-UP DE AÇÃO PARA VISITANTE (CURTIR / COMENTAR) */}
+      <GuestActionModal
+        isOpen={guestActionModal.isOpen}
+        type={guestActionModal.type}
+        movieTitle={guestActionModal.movieTitle}
+        onClose={() => setGuestActionModal({ isOpen: false, type: 'favorite', movieTitle: '' })}
+        onOpenAuth={(tab) => setAuthModalState({ isOpen: true, initialTab: tab })}
+      />
+
+      {/* MODAL DE AUTENTICAÇÃO (LOGIN / CADASTRO / RECUPERAÇÃO) */}
+      {authModalState.isOpen && (
+        <AuthModal
+          initialTab={authModalState.initialTab}
+          onAuthSuccess={(newUser) => {
+            setUser(newUser);
+            setAuthModalState({ isOpen: false, initialTab: 'login' });
+          }}
+          onShowToast={showToast}
+          onClose={() => setAuthModalState({ isOpen: false, initialTab: 'login' })}
         />
       )}
 

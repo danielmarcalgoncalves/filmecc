@@ -4,7 +4,7 @@ const moviesController = require('../controllers/moviesController');
 const { authMiddleware } = require('../middlewares/auth');
 
 // Busca dos filmes do Tom Hanks na API externa TMDB
-// Requer autenticação para acesso ao catálogo
-router.get('/tom-hanks', authMiddleware, moviesController.getTomHanksMovies);
+// Rota pública para permitir a visualização de degustação no modo visitante e catálogo completo
+router.get('/tom-hanks', moviesController.getTomHanksMovies);
 
 module.exports = router;

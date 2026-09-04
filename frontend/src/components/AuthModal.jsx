@@ -1,8 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 
+<<<<<<< HEAD
 export default function AuthModal({ onAuthSuccess, onShowToast }) {
   const [tab, setTab] = useState('login'); // 'login' | 'register' | 'forgot' | 'verify'
+=======
+export default function AuthModal({ onAuthSuccess, onShowToast, initialTab = 'login', onClose }) {
+  const [tab, setTab] = useState(initialTab || 'login'); // 'login' | 'register'
+>>>>>>> b909f54 (Adição de pagina visitante, onde não precisa de cadastro)
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
@@ -11,6 +16,7 @@ export default function AuthModal({ onAuthSuccess, onShowToast }) {
   const [resending, setResending] = useState(false);
   const [error, setError] = useState(null);
 
+<<<<<<< HEAD
   // Timer de 15 minutos (900 segundos) para o código OTP
   const [timeLeft, setTimeLeft] = useState(15 * 60);
   const [timerActive, setTimerActive] = useState(false);
@@ -37,6 +43,14 @@ export default function AuthModal({ onAuthSuccess, onShowToast }) {
     const secs = seconds % 60;
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
+=======
+  useEffect(() => {
+    if (initialTab) {
+      setTab(initialTab);
+      setError(null);
+    }
+  }, [initialTab]);
+>>>>>>> b909f54 (Adição de pagina visitante, onde não precisa de cadastro)
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -125,6 +139,7 @@ export default function AuthModal({ onAuthSuccess, onShowToast }) {
   };
 
   return (
+<<<<<<< HEAD
     <div className="auth-page-backdrop">
       <div className="auth-card">
         {tab !== 'verify' ? (
@@ -139,6 +154,82 @@ export default function AuthModal({ onAuthSuccess, onShowToast }) {
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.25rem' }}>
                 Especial Filmografia Tom Hanks
               </p>
+=======
+    <div className="auth-page-backdrop" onClick={onClose ? onClose : undefined}>
+      <div className="auth-card" onClick={(e) => e.stopPropagation()}>
+        {onClose && (
+          <button
+            type="button"
+            className="auth-modal-close"
+            onClick={onClose}
+            title="Fechar e continuar explorando"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        )}
+        <div className="auth-header">
+          <div className="auth-brand-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z" />
+            </svg>
+          </div>
+          <h2>Catálogo de Filmes</h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.25rem' }}>
+            Especial Filmografia Tom Hanks
+          </p>
+        </div>
+
+        <div className="auth-tabs" style={{ display: tab === 'forgot' ? 'none' : 'flex' }}>
+          <button
+            type="button"
+            className={`auth-tab-btn ${tab === 'login' ? 'active' : ''}`}
+            onClick={() => { setTab('login'); setError(null); }}
+          >
+            Entrar
+          </button>
+          <button
+            type="button"
+            className={`auth-tab-btn ${tab === 'register' ? 'active' : ''}`}
+            onClick={() => { setTab('register'); setError(null); }}
+          >
+            Criar Conta
+          </button>
+        </div>
+
+        {tab === 'forgot' && (
+          <div style={{ textAlign: 'center', marginBottom: '1rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+            Digite seu e-mail cadastrado para receber um link de recuperação.
+          </div>
+        )}
+
+        {error && (
+          <div className="alert-error">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            <span>{error}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit}>
+          {tab === 'register' && (
+            <div className="form-group">
+              <label className="form-label" htmlFor="input-nome">Seu Nome Completo</label>
+              <input
+                id="input-nome"
+                type="text"
+                className="form-input"
+                placeholder="Ex: Forrest Gump"
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                required
+              />
+>>>>>>> b909f54 (Adição de pagina visitante, onde não precisa de cadastro)
             </div>
 
             <div className="auth-tabs" style={{ display: tab === 'forgot' ? 'none' : 'flex' }}>
