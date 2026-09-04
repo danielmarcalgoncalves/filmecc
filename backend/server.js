@@ -10,6 +10,7 @@ const authRoutes = require('./src/routes/authRoutes');
 const moviesRoutes = require('./src/routes/moviesRoutes');
 const favoritesRoutes = require('./src/routes/favoritesRoutes');
 const commentsRoutes = require('./src/routes/commentsRoutes');
+const listsRoutes = require('./src/routes/listsRoutes');
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/movies', moviesRoutes);
 app.use('/api/favorites', favoritesRoutes);
 app.use('/api/comments', commentsRoutes);
+app.use('/api/lists', listsRoutes);
 
 // Health check para monitoramento e Portainer
 app.get('/api/health', (req, res) => {

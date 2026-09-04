@@ -7,6 +7,7 @@ import MovieCard from './components/MovieCard';
 import MovieDetailModal from './components/MovieDetailModal';
 import ResetPasswordModal from './components/ResetPasswordModal';
 import AdminDashboard from './components/AdminDashboard';
+import ListsView from './components/ListsView';
 import Toast from './components/Toast';
 import { api } from './services/api';
 
@@ -18,6 +19,7 @@ export default function App() {
   const [movies, setMovies] = useState([]);
   const [favorites, setFavorites] = useState([]);
   const [comments, setComments] = useState([]);
+  const [watchlist, setWatchlist] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -26,7 +28,7 @@ export default function App() {
   const [guestActionModal, setGuestActionModal] = useState({ isOpen: false, type: 'favorite', movieTitle: '' });
 
   // Filtros e Navegação
-  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'favorites' | 'comments'
+  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'favorites' | 'comments' | 'lists'
   const [activeGenre, setActiveGenre] = useState('Todos');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('rating'); // 'rating' | 'year' | 'title'
@@ -57,17 +59,20 @@ export default function App() {
       const moviesRes = await api.movies.getTomHanks();
       setMovies(moviesRes.movies || []);
 
-      // 2. Se houver usuário autenticado, busca favoritos e comentários do MariaDB
+      // 2. Se houver usuário autenticado, busca favoritos, comentários e watchlist do MariaDB
       if (user) {
-        const [favsRes, commsRes] = await Promise.all([
+        const [favsRes, commsRes, watchRes] = await Promise.all([
           api.favorites.getAll(),
-          api.comments.getAll()
+          api.comments.getAll(),
+          api.lists.getWatchlist().catch(() => ({ lista: { filmes: [] } }))
         ]);
         setFavorites(favsRes.favoritos || []);
         setComments(commsRes.comentarios || []);
+        setWatchlist(watchRes?.lista?.filmes || []);
       } else {
         setFavorites([]);
         setComments([]);
+        setWatchlist([]);
       }
     } catch (err) {
       console.error('Erro ao carregar dados:', err);
@@ -80,12 +85,14 @@ export default function App() {
   const handleReloadUserData = async () => {
     if (!user) return;
     try {
-      const [favsRes, commsRes] = await Promise.all([
+      const [favsRes, commsRes, watchRes] = await Promise.all([
         api.favorites.getAll(),
-        api.comments.getAll()
+        api.comments.getAll(),
+        api.lists.getWatchlist().catch(() => ({ lista: { filmes: [] } }))
       ]);
       setFavorites(favsRes.favoritos || []);
       setComments(commsRes.comentarios || []);
+      setWatchlist(watchRes?.lista?.filmes || []);
     } catch (err) {
       console.error('Erro ao atualizar dados do usuário:', err);
     }
@@ -96,6 +103,7 @@ export default function App() {
     setUser(null);
     setFavorites([]);
     setComments([]);
+    setWatchlist([]);
     setSelectedMovie(null);
     setCurrentView('catalog');
     showToast('Sessão encerrada com sucesso.', 'success');
@@ -141,6 +149,36 @@ export default function App() {
     }
   };
 
+  const handleToggleWatchlist = async (movie) => {
+    if (!user) {
+      handleRequireAuth('favorite', movie?.title);
+      return;
+    }
+
+    const inWatchlist = watchlist.some((w) => (w.tmdb_movie_id || w.id) === movie.id);
+
+    try {
+      const res = await api.lists.toggleWatchlist(movie.id, movie.title, movie.poster_path);
+      if (res.action === 'removed' || inWatchlist) {
+        setWatchlist((prev) => prev.filter((w) => (w.tmdb_movie_id || w.id) !== movie.id));
+        showToast(`"${movie.title}" removido da sua Watchlist.`, 'success');
+      } else {
+        setWatchlist((prev) => [
+          {
+            tmdb_movie_id: movie.id,
+            titulo: movie.title,
+            poster_path: movie.poster_path,
+            poster_url: movie.poster_url || (movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null)
+          },
+          ...prev
+        ]);
+        showToast(`"${movie.title}" adicionado à sua Watchlist!`, 'success');
+      }
+    } catch (err) {
+      showToast(err.message || 'Erro ao atualizar Watchlist.', 'error');
+    }
+  };
+
   const commentsCountByMovie = useMemo(() => {
     const map = {};
     for (const c of comments) {
@@ -152,6 +190,10 @@ export default function App() {
   const favoriteMovieIds = useMemo(() => {
     return new Set(favorites.map((f) => f.tmdb_movie_id));
   }, [favorites]);
+
+  const watchlistMovieIds = useMemo(() => {
+    return new Set(watchlist.map((w) => w.tmdb_movie_id || w.id));
+  }, [watchlist]);
 
   // Filme em destaque para o Hero (Forrest Gump ou o mais popular com backdrop)
   const heroMovie = useMemo(() => {
@@ -235,8 +277,8 @@ export default function App() {
   }, [user, filteredMovies]);
 
   const handleTabSelect = (tab) => {
-    if (!user && (tab === 'favorites' || tab === 'comments')) {
-      handleRequireAuth(tab === 'favorites' ? 'favorite' : 'comment');
+    if (!user && (tab === 'favorites' || tab === 'comments' || tab === 'lists')) {
+      handleRequireAuth(tab === 'comments' ? 'comment' : 'favorite');
       return;
     }
     setActiveTab(tab);
@@ -291,6 +333,20 @@ export default function App() {
             user={user} 
             onBack={() => setCurrentView('catalog')} 
             onShowToast={showToast} 
+          />
+        </main>
+      ) : activeTab === 'lists' ? (
+        <main className="cinefilia-main-body pt-16">
+          <ListsView
+            user={user}
+            onShowToast={showToast}
+            onSelectMovie={setSelectedMovie}
+            onRequireAuth={handleRequireAuth}
+            favoriteMovieIds={favoriteMovieIds}
+            watchedMovieIds={favoriteMovieIds}
+            watchlistMovieIds={watchlistMovieIds}
+            onToggleFavorite={handleToggleFavorite}
+            onToggleWatchlist={handleToggleWatchlist}
           />
         </main>
       ) : (
@@ -377,11 +433,12 @@ export default function App() {
                 title="🔥 Em Alta"
                 movies={popularMovies}
                 favoriteMovieIds={favoriteMovieIds}
+                watchlistMovieIds={watchlistMovieIds}
                 commentsCountByMovie={commentsCountByMovie}
                 onSelect={setSelectedMovie}
                 onToggleFavorite={handleToggleFavorite}
                 onToggleWatched={handleToggleFavorite}
-                onToggleWatchlist={(m) => handleRequireAuth('favorite', m.title)}
+                onToggleWatchlist={handleToggleWatchlist}
                 isGuest={!user}
                 onOpenAuth={(tab) => setAuthModalState({ isOpen: true, initialTab: tab })}
               />
@@ -390,11 +447,12 @@ export default function App() {
                 title="🆕 Mais Recentes"
                 movies={recentMovies}
                 favoriteMovieIds={favoriteMovieIds}
+                watchlistMovieIds={watchlistMovieIds}
                 commentsCountByMovie={commentsCountByMovie}
                 onSelect={setSelectedMovie}
                 onToggleFavorite={handleToggleFavorite}
                 onToggleWatched={handleToggleFavorite}
-                onToggleWatchlist={(m) => handleRequireAuth('favorite', m.title)}
+                onToggleWatchlist={handleToggleWatchlist}
                 isGuest={!user}
                 onOpenAuth={(tab) => setAuthModalState({ isOpen: true, initialTab: tab })}
               />
@@ -403,11 +461,12 @@ export default function App() {
                 title="⭐ Mais Bem Avaliados"
                 movies={topRatedMovies}
                 favoriteMovieIds={favoriteMovieIds}
+                watchlistMovieIds={watchlistMovieIds}
                 commentsCountByMovie={commentsCountByMovie}
                 onSelect={setSelectedMovie}
                 onToggleFavorite={handleToggleFavorite}
                 onToggleWatched={handleToggleFavorite}
-                onToggleWatchlist={(m) => handleRequireAuth('favorite', m.title)}
+                onToggleWatchlist={handleToggleWatchlist}
                 isGuest={!user}
                 onOpenAuth={(tab) => setAuthModalState({ isOpen: true, initialTab: tab })}
               />
@@ -513,10 +572,11 @@ export default function App() {
                           key={movie.id}
                           movie={movie}
                           isFavorite={favoriteMovieIds.has(movie.id)}
+                          isWatchlist={watchlistMovieIds.has(movie.id)}
                           commentCount={commentsCountByMovie[movie.id] || 0}
                           onToggleFavorite={handleToggleFavorite}
                           onToggleWatched={handleToggleFavorite}
-                          onToggleWatchlist={(m) => handleRequireAuth('favorite', m.title)}
+                          onToggleWatchlist={handleToggleWatchlist}
                           onOpenDetails={setSelectedMovie}
                         />
                       ))}
@@ -585,8 +645,10 @@ export default function App() {
         <MovieDetailModal
           movie={selectedMovie}
           isFavorite={favoriteMovieIds.has(selectedMovie.id)}
+          isWatchlist={watchlistMovieIds.has(selectedMovie.id)}
           user={user}
           onToggleFavorite={handleToggleFavorite}
+          onToggleWatchlist={handleToggleWatchlist}
           onClose={() => setSelectedMovie(null)}
           onShowToast={showToast}
           onCommentChanged={handleReloadUserData}

@@ -49,6 +49,13 @@ export default function Navbar({
           </button>
           <button
             type="button"
+            className={`nav-link ${activeTab === 'lists' ? 'active' : ''}`}
+            onClick={() => onSelectTab && onSelectTab('lists')}
+          >
+            Listas
+          </button>
+          <button
+            type="button"
             className={`nav-link ${activeTab === 'comments' ? 'active' : ''}`}
             onClick={() => onSelectTab && onSelectTab('comments')}
           >

@@ -198,6 +198,53 @@ export const api = {
     async listAllComments() {
       return await apiRequest('/comments/admin/all');
     }
+  },
+
+  lists: {
+    async getAll() {
+      return await apiRequest('/lists');
+    },
+
+    async getWatchlist() {
+      return await apiRequest('/lists/watchlist/items');
+    },
+
+    async toggleWatchlist(tmdb_movie_id, titulo, poster_path) {
+      return await apiRequest('/lists/watchlist/toggle', {
+        method: 'POST',
+        body: JSON.stringify({ tmdb_movie_id, titulo, poster_path })
+      });
+    },
+
+    async create(nome, descricao) {
+      return await apiRequest('/lists', {
+        method: 'POST',
+        body: JSON.stringify({ nome, descricao })
+      });
+    },
+
+    async delete(listId) {
+      return await apiRequest(`/lists/${listId}`, {
+        method: 'DELETE'
+      });
+    },
+
+    async getDetails(listId) {
+      return await apiRequest(`/lists/${listId}`);
+    },
+
+    async addMovie(listId, tmdb_movie_id, titulo, poster_path) {
+      return await apiRequest(`/lists/${listId}/items`, {
+        method: 'POST',
+        body: JSON.stringify({ tmdb_movie_id, titulo, poster_path })
+      });
+    },
+
+    async removeMovie(listId, tmdbMovieId) {
+      return await apiRequest(`/lists/${listId}/items/${tmdbMovieId}`, {
+        method: 'DELETE'
+      });
+    }
   }
 };
 

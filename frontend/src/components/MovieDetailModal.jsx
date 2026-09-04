@@ -4,8 +4,10 @@ import { api } from '../services/api';
 export default function MovieDetailModal({
   movie,
   isFavorite,
+  isWatchlist: propIsWatchlist = false,
   user,
   onToggleFavorite,
+  onToggleWatchlist,
   onClose,
   onShowToast,
   onCommentChanged,
@@ -53,7 +55,11 @@ export default function MovieDetailModal({
 
   // Status de Visto e Watchlist
   const [isWatched, setIsWatched] = useState(isFavorite);
-  const [isWatchlist, setIsWatchlist] = useState(false);
+  const [isWatchlist, setIsWatchlist] = useState(propIsWatchlist);
+
+  useEffect(() => {
+    setIsWatchlist(propIsWatchlist);
+  }, [propIsWatchlist]);
 
   useEffect(() => {
     if (movie && user) {
@@ -212,15 +218,20 @@ export default function MovieDetailModal({
                   type="button"
                   className={`btn-detail-action ${isWatchlist ? 'active-watchlist' : ''}`}
                   onClick={() => {
-                    if (!user && onRequireAuth) onRequireAuth('favorite', movie.title);
-                    else setIsWatchlist((v) => !v);
+                    if (!user && onRequireAuth) {
+                      onRequireAuth('favorite', movie.title);
+                    } else if (onToggleWatchlist) {
+                      onToggleWatchlist(movie);
+                    } else {
+                      setIsWatchlist((v) => !v);
+                    }
                   }}
                 >
                   <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                     <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.3" />
                     <path d="M8 4.5V8l2.5 2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
                   </svg>
-                  <span>{isWatchlist ? 'Na Watchlist' : 'Adicionar à Lista'}</span>
+                  <span>{isWatchlist ? 'Na Watchlist' : 'Watchlist'}</span>
                 </button>
 
                 <button

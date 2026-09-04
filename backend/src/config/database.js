@@ -102,6 +102,33 @@ async function initDb() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
+    // Criação da tabela de listas (Watchlist e Listas Personalizadas)
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS listas (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        usuario_id INT NOT NULL,
+        nome VARCHAR(255) NOT NULL,
+        descricao TEXT NULL,
+        is_watchlist BOOLEAN DEFAULT FALSE,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // Criação da tabela de itens pertencentes a cada lista
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS itens_lista (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        lista_id INT NOT NULL,
+        tmdb_movie_id INT NOT NULL,
+        titulo VARCHAR(255) NOT NULL,
+        poster_path VARCHAR(255) NULL,
+        adicionado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (lista_id) REFERENCES listas(id) ON DELETE CASCADE,
+        UNIQUE KEY uk_lista_filme (lista_id, tmdb_movie_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
     connection.release();
     console.log('[Database] Tabelas verificadas e prontas para uso.');
   } catch (error) {
