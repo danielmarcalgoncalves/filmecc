@@ -17,6 +17,7 @@ router.post('/watchlist/toggle', listsController.toggleWatchlist);
 
 // Detalhes e gerenciamento de itens de uma lista específica
 router.get('/:listId', listsController.getListDetails);
+router.put('/:listId', listsController.updateList);
 router.post('/:listId/items', listsController.addMovieToList);
 router.delete('/:listId/items/:tmdbMovieId', listsController.removeMovieFromList);
 

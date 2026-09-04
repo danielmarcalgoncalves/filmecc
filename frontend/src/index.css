@@ -3424,3 +3424,153 @@ html, body, #root {
   border-color: #00c048;
 }
 
+/* =========================================================
+   VALIDAÇÃO DE TÍTULO OBRIGATÓRIO EM VERMELHO
+   ========================================================= */
+.selection-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.15rem;
+}
+
+.field-required-error-text {
+  color: #ef4444;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.selection-input.input-error-field {
+  border-color: #ef4444 !important;
+  background-color: rgba(239, 68, 68, 0.05);
+}
+
+.selection-input.input-error-field:focus {
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3);
+}
+
+/* =========================================================
+   AVISO EM DESTAQUE: LIMITE MÁXIMO DE FILMES ATINGIDO
+   ========================================================= */
+.selection-limit-reached-banner {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: rgba(255, 144, 16, 0.12);
+  border: 1px solid rgba(255, 144, 16, 0.38);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.35rem;
+  animation: fadeIn 0.3s ease-out;
+  margin-bottom: 0.5rem;
+}
+
+.limit-banner-icon-box {
+  color: #ff9010;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.limit-banner-text-box h4 {
+  color: #ff9010;
+  font-size: 0.96rem;
+  font-weight: 700;
+  margin-bottom: 0.2rem;
+}
+
+.limit-banner-text-box p {
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.selection-badge-count.badge-at-limit {
+  border-color: rgba(255, 144, 16, 0.5);
+  background: rgba(255, 144, 16, 0.1);
+  color: #ff9010;
+}
+
+/* =========================================================
+   BOTÃO '+' E CARD PARA ADICIONAR MAIS FILMES À LISTA
+   ========================================================= */
+.selected-list-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.btn-add-more-movies-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background-color: var(--color-accent-green);
+  color: var(--color-text-dark);
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.45rem 1rem;
+  border-radius: var(--radius-full);
+  border: none;
+  cursor: pointer;
+  transition: transform var(--transition-fast), filter var(--transition-fast);
+  box-shadow: 0 3px 12px rgba(0, 224, 84, 0.25);
+}
+
+.btn-add-more-movies-header:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+}
+
+.add-movie-grid-slot {
+  cursor: pointer;
+}
+
+.add-movie-slot-box {
+  border: 2px dashed rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-md);
+  aspect-ratio: 2/3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background: rgba(28, 34, 40, 0.4);
+  transition: border-color var(--transition-fast), background-color var(--transition-fast), transform var(--transition-fast);
+  padding: 1rem;
+  text-align: center;
+}
+
+.add-movie-grid-slot:hover .add-movie-slot-box {
+  border-color: var(--color-accent-green);
+  background-color: rgba(0, 224, 84, 0.05);
+  transform: translateY(-3px);
+}
+
+.add-movie-plus-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.add-movie-grid-slot:hover .add-movie-plus-icon {
+  background-color: var(--color-accent-green);
+  color: var(--color-text-dark);
+}
+
+.add-movie-slot-text {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+

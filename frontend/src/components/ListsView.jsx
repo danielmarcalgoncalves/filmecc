@@ -25,13 +25,19 @@ export default function ListsView({
   const [selectedList, setSelectedList] = useState(null);
   const [loadingSelectedList, setLoadingSelectedList] = useState(false);
 
-  // Estado da Tela "Criar Nova Seleção"
+  // Estado da Tela "Criar / Editar Seleção"
   const [isCreatingSelection, setIsCreatingSelection] = useState(false);
+  const [editingList, setEditingList] = useState(null); // null quando criando nova, objeto da lista quando editando
   const [newListName, setNewListName] = useState('');
   const [newListDesc, setNewListDesc] = useState('');
   const [selectedMovieIds, setSelectedMovieIds] = useState(new Set());
   const [selectionSearchQuery, setSelectionSearchQuery] = useState('');
   const [savingSelection, setSavingSelection] = useState(false);
+
+  const isCommon = cotas.papel === 'usuario';
+  // Cota máxima de filmes: 10 para usuário comum, 50 para premium
+  const maxMoviesLimit = isCommon ? 10 : 50;
+  const isLimitReached = selectedMovieIds.size >= maxMoviesLimit;
 
   useEffect(() => {
     if (user) {
@@ -103,15 +109,27 @@ export default function ListsView({
     }
   };
 
-  // Abrir tela de criação de seleção com validação de cota
+  // Abrir tela para criar nova seleção
   const handleOpenCreateSelection = () => {
     if (isCommon && cotas.listasCriadas >= cotas.limiteListas) {
       if (onShowToast) onShowToast('Você atingiu o limite de 2 listas personalizadas no plano Comum!', 'error');
       return;
     }
+    setEditingList(null);
     setNewListName('');
     setNewListDesc('');
     setSelectedMovieIds(new Set());
+    setSelectionSearchQuery('');
+    setIsCreatingSelection(true);
+  };
+
+  // Abrir tela para editar seleção existente (adicionar/remover filmes via botão "+")
+  const handleOpenEditSelection = (list) => {
+    setEditingList(list);
+    setNewListName(list.nome);
+    setNewListDesc(list.descricao || '');
+    const currentIds = new Set((list.filmes || []).map((f) => f.tmdb_movie_id));
+    setSelectedMovieIds(currentIds);
     setSelectionSearchQuery('');
     setIsCreatingSelection(true);
   };
@@ -122,16 +140,22 @@ export default function ListsView({
       if (next.has(movieId)) {
         next.delete(movieId);
       } else {
+        if (next.size >= maxMoviesLimit) {
+          if (onShowToast) {
+            onShowToast(`Limite máximo de ${maxMoviesLimit} filmes atingido no plano ${isCommon ? 'Comum' : 'Premium'}!`, 'error');
+          }
+          return prev;
+        }
         next.add(movieId);
       }
       return next;
     });
   };
 
-  const handleSaveNewSelection = async (e) => {
+  const handleSaveSelection = async (e) => {
     if (e) e.preventDefault();
     if (!newListName.trim()) {
-      if (onShowToast) onShowToast('Por favor, informe o nome da seleção.', 'error');
+      if (onShowToast) onShowToast('Por favor, preencha o campo obrigatório de título.', 'error');
       return;
     }
 
@@ -145,11 +169,30 @@ export default function ListsView({
 
     setSavingSelection(true);
     try {
-      await api.lists.create(newListName.trim(), newListDesc.trim(), selectedListItems);
-      if (onShowToast) {
-        onShowToast(`Seleção "${newListName.trim()}" criada com ${selectedListItems.length} filme(s)!`, 'success');
+      if (editingList) {
+        // Atualiza lista existente
+        await api.lists.update(
+          editingList.id,
+          newListName.trim(),
+          newListDesc.trim(),
+          selectedListItems
+        );
+        if (onShowToast) {
+          onShowToast(`Lista "${newListName.trim()}" atualizada com sucesso (${selectedListItems.length} filmes)!`, 'success');
+        }
+        // Recarrega detalhes da lista selecionada
+        const res = await api.lists.getDetails(editingList.id);
+        setSelectedList(res.lista);
+      } else {
+        // Cria nova lista
+        await api.lists.create(newListName.trim(), newListDesc.trim(), selectedListItems);
+        if (onShowToast) {
+          onShowToast(`Seleção "${newListName.trim()}" criada com ${selectedListItems.length} filme(s)!`, 'success');
+        }
       }
+
       setIsCreatingSelection(false);
+      setEditingList(null);
       setNewListName('');
       setNewListDesc('');
       setSelectedMovieIds(new Set());
@@ -175,12 +218,11 @@ export default function ListsView({
 
   const watchlist = listsData.find((l) => l.is_watchlist);
   const customLists = listsData.filter((l) => !l.is_watchlist);
-  const isCommon = cotas.papel === 'usuario';
 
   return (
     <div className="lists-view-container">
       {/* =========================================================
-          1. TELA: CRIAR NOVA SELEÇÃO COM ESCOLHA DE FILMES
+          1. TELA: CRIAR OU EDITAR SELEÇÃO DE FILMES
           ========================================================= */}
       {isCreatingSelection ? (
         <div className="create-selection-view">
@@ -188,33 +230,44 @@ export default function ListsView({
             <button
               type="button"
               className="btn-back-to-lists"
-              onClick={() => setIsCreatingSelection(false)}
+              onClick={() => {
+                setIsCreatingSelection(false);
+                setEditingList(null);
+              }}
             >
               <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
                 <path d="M10 4L6 8l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              <span>Voltar para Minhas Listas</span>
+              <span>{editingList ? 'Voltar para a Lista' : 'Voltar para Minhas Listas'}</span>
             </button>
 
             <div className="create-selection-title-row">
               <div>
-                <h1 className="create-selection-main-title">Criar Nova Seleção</h1>
+                <h1 className="create-selection-main-title">
+                  {editingList ? `Editar Lista: ${editingList.nome}` : 'Criar Nova Seleção'}
+                </h1>
                 <p className="create-selection-subtitle">
-                  Dê um título para sua seleção e clique no botão verde <strong>"Adicionar"</strong> nos filmes que deseja incluir.
+                  {editingList
+                    ? 'Adicione ou remova filmes clicando no botão verde nos filmes desejados.'
+                    : 'Dê um título para sua seleção e clique no botão verde "Adicionar" nos filmes que deseja incluir.'}
                 </p>
               </div>
 
               <div className="create-selection-top-actions">
-                <div className="selection-badge-count">
-                  <strong>{selectedMovieIds.size}</strong> filme{selectedMovieIds.size !== 1 ? 's' : ''} selecionado{selectedMovieIds.size !== 1 ? 's' : ''}
+                <div className={`selection-badge-count ${isLimitReached ? 'badge-at-limit' : ''}`}>
+                  <strong>{selectedMovieIds.size}</strong>/{maxMoviesLimit} filmes selecionados
                 </div>
                 <button
                   type="button"
                   className="btn-save-selection"
                   disabled={savingSelection || !newListName.trim()}
-                  onClick={handleSaveNewSelection}
+                  onClick={handleSaveSelection}
                 >
-                  {savingSelection ? 'Salvando...' : 'Salvar Seleção'}
+                  {savingSelection
+                    ? 'Salvando...'
+                    : editingList
+                    ? `Salvar Alterações (${selectedMovieIds.size})`
+                    : `Salvar Seleção (${selectedMovieIds.size})`}
                 </button>
               </div>
             </div>
@@ -224,13 +277,20 @@ export default function ListsView({
           <div className="selection-form-card">
             <div className="selection-inputs-grid">
               <div className="selection-field-wrap">
-                <label className="selection-label" htmlFor="input-selection-name">
-                  Nome da Seleção *
-                </label>
+                <div className="selection-label-row">
+                  <label className="selection-label" htmlFor="input-selection-name">
+                    Nome da Seleção *
+                  </label>
+                  {!newListName.trim() && (
+                    <span className="field-required-error-text">
+                      Preencha o campo obrigatório
+                    </span>
+                  )}
+                </div>
                 <input
                   id="input-selection-name"
                   type="text"
-                  className="selection-input"
+                  className={`selection-input ${!newListName.trim() ? 'input-error-field' : ''}`}
                   placeholder="Ex: Clássicos Premiados, Melhores Dramas, Filmes dos Anos 90..."
                   value={newListName}
                   onChange={(e) => setNewListName(e.target.value)}
@@ -241,9 +301,11 @@ export default function ListsView({
               </div>
 
               <div className="selection-field-wrap">
-                <label className="selection-label" htmlFor="input-selection-desc">
-                  Descrição (Opcional)
-                </label>
+                <div className="selection-label-row">
+                  <label className="selection-label" htmlFor="input-selection-desc">
+                    Descrição (Opcional)
+                  </label>
+                </div>
                 <input
                   id="input-selection-desc"
                   type="text"
@@ -280,6 +342,27 @@ export default function ListsView({
               )}
             </div>
           </div>
+
+          {/* AVISO EM DESTAQUE AO ATINGIR O LIMITE MÁXIMO DE FILMES */}
+          {isLimitReached && (
+            <div className="selection-limit-reached-banner">
+              <div className="limit-banner-icon-box">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+              </div>
+              <div className="limit-banner-text-box">
+                <h4>Limite Máximo de {maxMoviesLimit} Filmes Atingido!</h4>
+                <p>
+                  {isCommon
+                    ? `Você atingiu o limite de ${maxMoviesLimit} filmes para o plano Comum. Para adicionar outros títulos, remova algum filme selecionado ou faça upgrade para o plano Premium!`
+                    : `Você atingiu o limite máximo de ${maxMoviesLimit} filmes para esta seleção.`}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Grade de Filmes para Escolha com Capa e Botão "Adicionar" */}
           <div className="selection-grid-section">
@@ -383,21 +466,37 @@ export default function ListsView({
             <div className="selected-list-info">
               <div className="selected-list-title-row">
                 <h2>{selectedList.nome}</h2>
-                {/* Removido o badge 'Fixa no Sistema' conforme solicitado */}
-                {!selectedList.is_watchlist && (
+
+                <div className="selected-list-actions-group">
+                  {/* BOTÃO "+" PARA ADICIONAR MAIS FILMES À LISTA */}
                   <button
                     type="button"
-                    className="btn-delete-list-icon"
-                    onClick={(e) => handleDeleteList(selectedList.id, selectedList.nome, e)}
-                    title="Excluir esta lista"
+                    className="btn-add-more-movies-header"
+                    onClick={() => handleOpenEditSelection(selectedList)}
+                    title="Adicionar ou remover filmes desta lista"
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polyline points="3 6 5 6 21 6"></polyline>
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <line x1="8" y1="2" x2="8" y2="14" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+                      <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
                     </svg>
-                    <span>Excluir Lista</span>
+                    <span>Adicionar mais filmes</span>
                   </button>
-                )}
+
+                  {!selectedList.is_watchlist && (
+                    <button
+                      type="button"
+                      className="btn-delete-list-icon"
+                      onClick={(e) => handleDeleteList(selectedList.id, selectedList.nome, e)}
+                      title="Excluir esta lista"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                      </svg>
+                      <span>Excluir Lista</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {selectedList.descricao && (
@@ -406,7 +505,7 @@ export default function ListsView({
 
               <div className="selected-list-stats">
                 <span>{selectedList.total_filmes} filme{selectedList.total_filmes !== 1 ? 's' : ''}</span>
-                {selectedList.is_watchlist && isCommon && (
+                {isCommon && (
                   <span className="quota-pill-indicator">
                     {selectedList.total_filmes}/10 da cota gratuita
                   </span>
@@ -420,15 +519,25 @@ export default function ListsView({
               <div className="cinefilia-spinner" />
               <p>Carregando filmes da lista...</p>
             </div>
-          ) : selectedList.filmes?.length === 0 ? (
-            <div className="empty-catalog-state">
-              <p className="empty-message">Esta lista ainda não possui nenhum filme adicionado.</p>
-              <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
-                Navegue pelo catálogo e use o botão de Watchlist ou Detalhes para adicionar obras a esta lista!
-              </p>
-            </div>
           ) : (
             <div className="cinefilia-poster-grid">
+              {/* CARD '+' NA GRADE PARA ADICIONAR MAIS FILMES */}
+              <div
+                className="list-movie-item-wrap add-movie-grid-slot"
+                onClick={() => handleOpenEditSelection(selectedList)}
+                title="Adicionar mais filmes a esta lista"
+              >
+                <div className="add-movie-slot-box">
+                  <div className="add-movie-plus-icon">
+                    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <line x1="12" y1="5" x2="12" y2="19" strokeLinecap="round" />
+                      <line x1="5" y1="12" x2="19" y2="12" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                  <span className="add-movie-slot-text">Adicionar Filmes</span>
+                </div>
+              </div>
+
               {selectedList.filmes?.map((item) => {
                 const movieObj = {
                   id: item.tmdb_movie_id,
@@ -476,7 +585,7 @@ export default function ListsView({
               </p>
             </div>
 
-            {/* Controle de Cotas (Botão do topo removido conforme solicitado) */}
+            {/* Controle de Cotas */}
             <div className="lists-quota-actions">
               <div className="quota-card-badge">
                 <span className="quota-plan-label">

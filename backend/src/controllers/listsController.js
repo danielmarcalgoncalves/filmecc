@@ -426,6 +426,66 @@ async function removeMovieFromList(req, res) {
   }
 }
 
+// Atualiza informações e/ou itens de uma lista
+async function updateList(req, res) {
+  try {
+    const usuarioId = req.usuarioId;
+    const papelUsuario = req.usuarioPapel || 'usuario';
+    const { listId } = req.params;
+    const { nome, descricao, filmes } = req.body;
+
+    const [listas] = await pool.query(
+      'SELECT id, is_watchlist FROM listas WHERE id = ? AND usuario_id = ?',
+      [listId, usuarioId]
+    );
+
+    if (listas.length === 0) {
+      return res.status(404).json({ error: 'Lista não encontrada ou não pertence a você.' });
+    }
+
+    const lista = listas[0];
+
+    // Atualiza nome e descrição se não for watchlist
+    if (!lista.is_watchlist && nome && nome.trim()) {
+      await pool.query(
+        'UPDATE listas SET nome = ?, descricao = ? WHERE id = ?',
+        [nome.trim(), descricao ? descricao.trim() : null, listId]
+      );
+    }
+
+    // Se filmes foram enviados, sincroniza os itens
+    if (Array.isArray(filmes)) {
+      const limiteFilmes = lista.is_watchlist ? 10 : (papelUsuario === 'usuario' ? 10 : 9999);
+      if (papelUsuario === 'usuario' && filmes.length > limiteFilmes) {
+        return res.status(403).json({
+          error: `Limite de ${limiteFilmes} filmes atingido para o plano Comum. Faça upgrade para o Premium para salvar mais filmes!`,
+          limite: limiteFilmes
+        });
+      }
+
+      // Substitui os itens de forma sincronizada
+      await pool.query('DELETE FROM itens_lista WHERE lista_id = ?', [listId]);
+
+      for (const item of filmes) {
+        const movieId = item.id || item.tmdb_movie_id;
+        const title = item.title || item.titulo || 'Sem título';
+        const poster = item.poster_path || null;
+        if (movieId) {
+          await pool.query(
+            'INSERT IGNORE INTO itens_lista (lista_id, tmdb_movie_id, titulo, poster_path) VALUES (?, ?, ?, ?)',
+            [listId, movieId, title, poster]
+          );
+        }
+      }
+    }
+
+    return res.json({ message: 'Lista atualizada com sucesso!' });
+  } catch (error) {
+    console.error('[Lists Controller] Erro ao atualizar lista:', error);
+    return res.status(500).json({ error: 'Erro interno ao atualizar lista.' });
+  }
+}
+
 module.exports = {
   getUserLists,
   getListDetails,
@@ -434,5 +494,6 @@ module.exports = {
   createList,
   deleteList,
   addMovieToList,
-  removeMovieFromList
+  removeMovieFromList,
+  updateList
 };

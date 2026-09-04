@@ -223,6 +223,13 @@ export const api = {
       });
     },
 
+    async update(listId, nome, descricao, filmes) {
+      return await apiRequest(`/lists/${listId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ nome, descricao, filmes })
+      });
+    },
+
     async delete(listId) {
       return await apiRequest(`/lists/${listId}`, {
         method: 'DELETE'
