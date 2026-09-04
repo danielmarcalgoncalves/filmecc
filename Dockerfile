@@ -7,8 +7,9 @@
 FROM node:20-slim AS frontend-builder
 WORKDIR /app/frontend
 
-COPY frontend/package*.json ./
-RUN npm install
+# Copia apenas o package.json e .npmrc para evitar que o lockfile do Windows omita binários do Linux
+COPY frontend/package.json frontend/.npmrc* ./
+RUN npm install --include=optional
 
 COPY frontend/ ./
 ENV NODE_OPTIONS="--max-old-space-size=2048"
