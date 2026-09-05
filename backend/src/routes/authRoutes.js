@@ -23,5 +23,6 @@ router.post('/reset-password', forgotPasswordLimiter, authController.resetPasswo
 // Rotas de administração de usuários (RBAC - proteção estrita de nível Admin)
 router.get('/users', authMiddleware, requireAdmin, authController.listUsers);
 router.patch('/users/:id/role', authMiddleware, requireAdmin, authController.updateUserRole);
+router.delete('/users/:id', authMiddleware, requireAdmin, authController.deleteUser);
 
 module.exports = router;

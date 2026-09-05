@@ -205,6 +205,12 @@ export const api = {
       });
     },
 
+    async deleteUser(userId) {
+      return await apiRequest(`/auth/users/${userId}`, {
+        method: 'DELETE'
+      });
+    },
+
     async listAllComments() {
       return await apiRequest('/comments/admin/all');
     }

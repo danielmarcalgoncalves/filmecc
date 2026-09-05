@@ -440,6 +440,44 @@ app.patch('/users/:id/role', authMiddleware, async (req, res) => {
   }
 });
 
+// Endpoint exclusivo de administração: Deletar usuário (seja ADM, PREMIUM ou Comum)
+app.delete('/users/:id', authMiddleware, async (req, res) => {
+  try {
+    const [currentUser] = await pool.query('SELECT papel FROM usuarios WHERE id = ?', [req.usuarioId]);
+    if (currentUser.length === 0 || currentUser[0].papel !== 'admin') {
+      return res.status(403).json({ error: 'Acesso proibido (403 Forbidden). Apenas administradores podem excluir usuários.' });
+    }
+
+    const targetId = req.params.id;
+
+    // Localizar o usuário a ser deletado
+    const [targetUsers] = await pool.query('SELECT id, nome, email, papel FROM usuarios WHERE id = ?', [targetId]);
+    if (targetUsers.length === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado.' });
+    }
+
+    const targetUser = targetUsers[0];
+
+    // Limpeza preventiva de eventuais códigos pendentes de verificação
+    if (targetUser.email) {
+      await pool.query('DELETE FROM codigos_verificacao WHERE email = ?', [targetUser.email]).catch(() => {});
+    }
+
+    // Exclusão do usuário (as tabelas filhas com FK ON DELETE CASCADE removem favoritos, comentários, listas e tokens automaticamente)
+    const [result] = await pool.query('DELETE FROM usuarios WHERE id = ?', [targetId]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado.' });
+    }
+
+    res.json({
+      message: `Usuário "${targetUser.nome}" (${targetUser.email}) com papel [${targetUser.papel}] foi excluído com sucesso.`
+    });
+  } catch (error) {
+    console.error('Erro ao excluir usuário:', error);
+    res.status(500).json({ error: 'Erro interno ao excluir usuário.' });
+  }
+});
+
 app.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body;
