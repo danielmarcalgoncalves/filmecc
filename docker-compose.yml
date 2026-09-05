@@ -16,7 +16,7 @@ services:
       - DB_USER=${DB_USER:-root}
       - DB_PASSWORD=${DB_PASSWORD:-root_password}
       - DB_NAME=${DB_NAME:-filmes_db}
-      - JWT_SECRET=${JWT_SECRET:-segredo_jwt_tomhanks_super_seguro_2026}
+      - JWT_SECRET=${JWT_SECRET}
       - AUTH_SERVICE_URL=http://auth-service:3000
     depends_on:
       - mariadb
@@ -35,7 +35,7 @@ services:
       - DB_USER=${DB_USER:-root}
       - DB_PASSWORD=${DB_PASSWORD:-root_password}
       - DB_NAME=${DB_NAME:-filmes_db}
-      - JWT_SECRET=${JWT_SECRET:-segredo_jwt_tomhanks_super_seguro_2026}
+      - JWT_SECRET=${JWT_SECRET}
       - MAIL_HOST=${MAIL_HOST:-smtp-relay.brevo.com}
       - MAIL_PORT=${MAIL_PORT:-587}
       - MAIL_USER=${MAIL_USER}

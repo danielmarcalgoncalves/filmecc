@@ -14,6 +14,7 @@ build/
 .env.local
 .env.*.local
 backend/.env
+auth-service/.env
 frontend/.env
 
 # Logs e Depuração

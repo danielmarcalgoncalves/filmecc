@@ -12,15 +12,21 @@ const favoritesRoutes = require('./src/routes/favoritesRoutes');
 const commentsRoutes = require('./src/routes/commentsRoutes');
 const listsRoutes = require('./src/routes/listsRoutes');
 
-const { securityHeaders } = require('./src/middlewares/security');
+const cookieParser = require('cookie-parser');
+const { securityHeaders, csrfProtection } = require('./src/middlewares/security');
 
 const app = express();
 
 // Headers de segurança e proteção HTTP
 app.use(securityHeaders);
 
-// Configuração de CORS e Parsers
-app.use(cors());
+// Configuração de CORS (permitindo envio de cookies/credentials) e Parsers
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
+app.use(cookieParser());
+app.use(csrfProtection);
 app.use(express.json({ limit: '1mb' }));
 
 // Rotas da API

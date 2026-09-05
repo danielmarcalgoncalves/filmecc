@@ -14,7 +14,10 @@ import { api } from './services/api';
 const GENRES = ['Todos', 'Drama', 'Comédia', 'Guerra', 'Animação', 'Aventura', 'Romance'];
 
 export default function App() {
-  const [user, setUser] = useState(api.auth.getStoredUser());
+  // SEGURANÇA: Inicia como null. O estado de autenticação e permissões decorre
+  // estritamente da resposta do servidor (/api/auth/me), ignorando o localStorage.
+  const [user, setUser] = useState(null);
+  const [authChecking, setAuthChecking] = useState(true);
   const [currentView, setCurrentView] = useState('catalog'); // 'catalog' | 'admin'
   const [movies, setMovies] = useState([]);
   const [favorites, setFavorites] = useState([]);
@@ -45,6 +48,24 @@ export default function App() {
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
   };
+
+  // Carregamento inicial da sessão oficial consultando o backend diretamente no banco
+  useEffect(() => {
+    api.auth.getMe()
+      .then((data) => {
+        if (data && data.usuario) {
+          setUser(data.usuario);
+        } else {
+          setUser(null);
+        }
+      })
+      .catch(() => {
+        setUser(null);
+      })
+      .finally(() => {
+        setAuthChecking(false);
+      });
+  }, []);
 
   // Carrega os dados da filmografia e dados do usuário se logado
   useEffect(() => {
@@ -98,8 +119,12 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
-    api.auth.logout();
+  const handleLogout = async () => {
+    try {
+      await api.auth.logout();
+    } catch (err) {
+      console.error('Erro ao efetuar logout:', err);
+    }
     setUser(null);
     setFavorites([]);
     setComments([]);

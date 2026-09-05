@@ -11,7 +11,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const JWT_SECRET = process.env.JWT_SECRET || 'segredo_jwt_tomhanks_super_seguro_2026';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET || JWT_SECRET.length < 32) {
+  throw new Error('JWT_SECRET deve ser configurado e possuir pelo menos 32 caracteres.');
+}
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'mariadb',
@@ -62,15 +65,19 @@ function rateLimit(windowMs, maxReqs, customMsg) {
 const failedVerifyAttempts = new Map();
 
 const authMiddleware = async (req, res, next) => {
+  let token = null;
   const authHeader = req.headers.authorization;
-  if (!authHeader) return res.status(401).json({ error: 'Token não fornecido.' });
-
-  const parts = authHeader.split(' ');
-  if (parts.length !== 2 || parts[0] !== 'Bearer') {
-    return res.status(401).json({ error: 'Formato de token inválido. Esperado: Bearer <token>' });
+  if (authHeader) {
+    const parts = authHeader.split(' ');
+    if (parts.length === 2 && parts[0] === 'Bearer') {
+      token = parts[1];
+    }
+  } else if (req.cookies && req.cookies.access_token) {
+    token = req.cookies.access_token;
   }
 
-  const token = parts[1];
+  if (!token) return res.status(401).json({ error: 'Token não fornecido.' });
+
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     if (!decoded || !decoded.id) {
@@ -84,9 +91,14 @@ const authMiddleware = async (req, res, next) => {
     }
 
     const usuarioDb = users[0];
+    const papelFinal = usuarioDb.papel || 'usuario';
     req.usuarioId = usuarioDb.id;
-    req.usuarioPapel = usuarioDb.papel || 'usuario';
-    req.usuario = usuarioDb;
+    req.usuarioPapel = papelFinal;
+    req.usuario = {
+      ...usuarioDb,
+      papel: papelFinal,
+      role: papelFinal
+    };
     return next();
   } catch (err) {
     return res.status(401).json({ error: 'Token inválido ou expirado.' });
@@ -270,7 +282,8 @@ app.post('/verify-code', rateLimit(10 * 60 * 1000, 8, 'Muitas tentativas de veri
         id: usuario.id,
         nome: usuario.nome,
         email: usuario.email,
-        papel: usuario.papel || 'usuario'
+        papel: usuario.papel || 'usuario',
+        role: usuario.papel || 'usuario'
       }
     });
   } catch (error) {
@@ -337,8 +350,19 @@ app.post('/login', async (req, res) => {
       });
     }
 
-    const token = jwt.sign({ id: usuario.id, nome: usuario.nome, email: usuario.email, papel: usuario.papel || 'usuario' }, JWT_SECRET, { expiresIn: '7d' });
-    res.json({ message: 'Login ok!', token, usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, papel: usuario.papel || 'usuario' } });
+    const papelFinal = usuario.papel || 'usuario';
+    const token = jwt.sign({ id: usuario.id, nome: usuario.nome, email: usuario.email, papel: papelFinal }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({
+      message: 'Login ok!',
+      token,
+      usuario: {
+        id: usuario.id,
+        nome: usuario.nome,
+        email: usuario.email,
+        papel: papelFinal,
+        role: papelFinal
+      }
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Erro interno.' });
@@ -349,7 +373,15 @@ app.get('/me', authMiddleware, async (req, res) => {
   try {
     const [users] = await pool.query('SELECT id, nome, email, papel, criado_em FROM usuarios WHERE id = ?', [req.usuarioId]);
     if (users.length === 0) return res.status(404).json({ error: 'Usuário não encontrado.' });
-    res.json({ usuario: users[0] });
+    const usuario = users[0];
+    const papelFinal = usuario.papel || 'usuario';
+    res.json({
+      usuario: {
+        ...usuario,
+        papel: papelFinal,
+        role: papelFinal
+      }
+    });
   } catch (error) {
     res.status(500).json({ error: 'Erro interno.' });
   }

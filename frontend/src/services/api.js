@@ -3,31 +3,32 @@
 
 const API_BASE = '/api';
 
+// Token mantido apenas em memória durante a sessão (mitigação contra roubo por XSS via localStorage)
+let inMemoryToken = null;
+
 function getToken() {
-  return localStorage.getItem('tomhanks_token');
+  return inMemoryToken;
 }
 
-function setSession(token, usuario) {
+function setSession(token) {
   if (token) {
-    localStorage.setItem('tomhanks_token', token);
+    inMemoryToken = token;
   }
-  if (usuario) {
-    localStorage.setItem('tomhanks_user', JSON.stringify(usuario));
-  }
+  // Remove dados sensíveis do localStorage caso tenham sido salvos anteriormente
+  localStorage.removeItem('tomhanks_token');
+  localStorage.removeItem('tomhanks_user');
 }
 
 function clearSession() {
+  inMemoryToken = null;
   localStorage.removeItem('tomhanks_token');
   localStorage.removeItem('tomhanks_user');
 }
 
 function getStoredUser() {
-  try {
-    const userStr = localStorage.getItem('tomhanks_user');
-    return userStr ? JSON.parse(userStr) : null;
-  } catch {
-    return null;
-  }
+  // SEGURANÇA: O localStorage NÃO é fonte de autenticação nem de autorização.
+  // A sessão legítima é obtida e validada diretamente no backend via /api/auth/me.
+  return null;
 }
 
 async function apiRequest(endpoint, options = {}) {
@@ -41,8 +42,10 @@ async function apiRequest(endpoint, options = {}) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
+  // credentials: 'include' envia automaticamente o cookie HttpOnly access_token
   const response = await fetch(`${API_BASE}${endpoint}`, {
     ...options,
+    credentials: 'include',
     headers
   });
 
@@ -69,8 +72,8 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ nome, email, senha })
       });
-      if (data.token && data.usuario) {
-        setSession(data.token, data.usuario);
+      if (data.token) {
+        setSession(data.token);
       }
       return data;
     },
@@ -80,8 +83,8 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ email, codigo })
       });
-      if (data.token && data.usuario) {
-        setSession(data.token, data.usuario);
+      if (data.token) {
+        setSession(data.token);
       }
       return data;
     },
@@ -98,7 +101,9 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ email, senha })
       });
-      setSession(data.token, data.usuario);
+      if (data.token) {
+        setSession(data.token);
+      }
       return data;
     },
 
@@ -106,7 +111,12 @@ export const api = {
       return await apiRequest('/auth/me');
     },
 
-    logout() {
+    async logout() {
+      try {
+        await apiRequest('/auth/logout', { method: 'POST' });
+      } catch {
+        // Desconsidera erro na chamada se a sessão já estiver encerrada
+      }
       clearSession();
     },
 

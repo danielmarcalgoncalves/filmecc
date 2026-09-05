@@ -182,7 +182,40 @@ function securityHeaders(req, res, next) {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://image.tmdb.org; connect-src 'self' https://api.themoviedb.org;"
+  );
   res.removeHeader('X-Powered-By');
+  next();
+}
+
+/**
+ * Middleware de Proteção contra CSRF em requisições de alteração de estado (POST, PUT, PATCH, DELETE)
+ */
+function csrfProtection(req, res, next) {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    return next();
+  }
+
+  // Validação de Origin/Host em requisições autenticadas via Cookie
+  if (req.cookies && req.cookies.access_token) {
+    const origin = req.headers['origin'];
+    const host = req.headers['host'];
+
+    if (origin) {
+      try {
+        const originUrl = new URL(origin);
+        if (originUrl.host !== host) {
+          console.warn(`[CSRF BLOCK] Origem suspeita bloqueada: ${origin} vs Host ${host}`);
+          return res.status(403).json({ error: 'Acesso bloqueado por segurança (Validação CSRF).' });
+        }
+      } catch {
+        return res.status(403).json({ error: 'Acesso bloqueado por segurança (Origem inválida).' });
+      }
+    }
+  }
+
   next();
 }
 
@@ -195,5 +228,6 @@ module.exports = {
   forgotPasswordLimiter,
   sanitizeComment,
   validateRegistrationInput,
-  securityHeaders
+  securityHeaders,
+  csrfProtection
 };
