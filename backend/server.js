@@ -12,7 +12,23 @@ const favoritesRoutes = require('./src/routes/favoritesRoutes');
 const commentsRoutes = require('./src/routes/commentsRoutes');
 const listsRoutes = require('./src/routes/listsRoutes');
 
-const cookieParser = require('cookie-parser');
+let cookieParser;
+try {
+  cookieParser = require('cookie-parser');
+} catch (e) {
+  // Fallback nativo e leve caso cookie-parser ainda não tenha sido instalado no container
+  cookieParser = () => (req, res, next) => {
+    req.cookies = req.cookies || {};
+    const cookieHeader = req.headers.cookie;
+    if (cookieHeader) {
+      cookieHeader.split(';').forEach(c => {
+        const [k, ...v] = c.trim().split('=');
+        if (k) req.cookies[k] = decodeURIComponent(v.join('='));
+      });
+    }
+    next();
+  };
+}
 const { securityHeaders, csrfProtection } = require('./src/middlewares/security');
 
 const app = express();
