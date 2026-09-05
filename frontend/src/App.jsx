@@ -298,7 +298,7 @@ export default function App() {
     const interval = setInterval(() => {
       setHeroIndex((prev) => (prev + 1) % heroMoviesList.length);
       setHeroTimerKey((k) => k + 1);
-    }, 40000); // 40 segundos
+    }, 5000); // 5 segundos
 
     return () => clearInterval(interval);
   }, [heroMoviesList.length, heroTimerKey]);

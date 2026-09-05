@@ -770,7 +770,7 @@ html, body, #root {
   left: 0;
   height: 2.5px;
   background: var(--color-accent-green);
-  animation: heroTimerProgress 40s linear forwards;
+  animation: heroTimerProgress 5s linear forwards;
 }
 
 /* =========================================================
