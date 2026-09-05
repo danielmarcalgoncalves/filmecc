@@ -220,14 +220,107 @@ export default function App() {
     return new Set(watchlist.map((w) => w.tmdb_movie_id || w.id));
   }, [watchlist]);
 
-  // Filme em destaque para o Hero (Forrest Gump ou o mais popular com backdrop)
-  const heroMovie = useMemo(() => {
-    if (movies.length === 0) return null;
-    const forrest = movies.find((m) => m.title && m.title.toLowerCase().includes('forrest gump') && m.backdrop_url);
-    if (forrest) return forrest;
-    const withBackdrop = movies.filter((m) => m.backdrop_url);
-    return withBackdrop.length > 0 ? withBackdrop[0] : movies[0];
+  // Carrossel Hero: 5 clássicos com rotação automática a cada 40 segundos
+  // 1. O Resgate do Soldado Ryan
+  // 2. Prenda-me Se For Capaz
+  // 3. Náufrago
+  // 4. Forrest Gump
+  // 5. À Espera de um Milagre
+  const heroMoviesList = useMemo(() => {
+    if (!movies || movies.length === 0) return [];
+
+    const normalize = (str) =>
+      (str || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+
+    const targets = [
+      // 1. O Resgate do Soldado Ryan
+      {
+        match: (t) =>
+          normalize(t).includes('resgate do soldado ryan') ||
+          normalize(t).includes('soldado ryan') ||
+          normalize(t).includes('saving private ryan')
+      },
+      // 2. Prenda-me Se For Capaz
+      {
+        match: (t) =>
+          normalize(t).includes('prenda-me') ||
+          normalize(t).includes('prenda me') ||
+          normalize(t).includes('catch me if you can')
+      },
+      // 3. Náufrago
+      {
+        match: (t) =>
+          normalize(t).includes('naufrago') ||
+          normalize(t).includes('cast away')
+      },
+      // 4. Forrest Gump
+      {
+        match: (t) =>
+          normalize(t).includes('forrest gump')
+      },
+      // 5. À Espera de um Milagre
+      {
+        match: (t) =>
+          normalize(t).includes('espera de um milagre') ||
+          normalize(t).includes('green mile')
+      }
+    ];
+
+    const result = [];
+    for (const target of targets) {
+      const found = movies.find((m) => target.match(m.title) && (m.backdrop_url || m.poster_url));
+      if (found && !result.some((r) => r.id === found.id)) {
+        result.push(found);
+      }
+    }
+
+    // Se algum dos 5 não for encontrado na API pública, preenche com filmes com backdrop
+    if (result.length < 5) {
+      const extra = movies
+        .filter((m) => (m.backdrop_url || m.poster_url) && !result.some((r) => r.id === m.id))
+        .slice(0, 5 - result.length);
+      result.push(...extra);
+    }
+
+    return result;
   }, [movies]);
+
+  const [heroIndex, setHeroIndex] = useState(0);
+  const [heroTimerKey, setHeroTimerKey] = useState(0);
+
+  // Troca automática do carrossel principal a cada 40 segundos (40.000 ms)
+  useEffect(() => {
+    if (heroMoviesList.length <= 1) return;
+
+    const interval = setInterval(() => {
+      setHeroIndex((prev) => (prev + 1) % heroMoviesList.length);
+      setHeroTimerKey((k) => k + 1);
+    }, 40000); // 40 segundos
+
+    return () => clearInterval(interval);
+  }, [heroMoviesList.length, heroTimerKey]);
+
+  const handleNextHero = () => {
+    if (heroMoviesList.length === 0) return;
+    setHeroIndex((prev) => (prev + 1) % heroMoviesList.length);
+    setHeroTimerKey((k) => k + 1);
+  };
+
+  const handlePrevHero = () => {
+    if (heroMoviesList.length === 0) return;
+    setHeroIndex((prev) => (prev - 1 + heroMoviesList.length) % heroMoviesList.length);
+    setHeroTimerKey((k) => k + 1);
+  };
+
+  const handleSelectHero = (idx) => {
+    setHeroIndex(idx);
+    setHeroTimerKey((k) => k + 1);
+  };
+
+  const heroMovie = heroMoviesList[heroIndex] || heroMoviesList[0] || null;
 
   // Carrosséis categorizados (Estilo Letterboxd / Cinefilia)
   const popularMovies = useMemo(() => {
@@ -378,11 +471,12 @@ export default function App() {
       ) : (
         <main className="cinefilia-main-body">
           {/* =========================================================
-              HERO SECTION CINEMÁTICO (520px com degradê duplo)
+              HERO SECTION CINEMÁTICO (Carrossel com troca a cada 40s)
               ========================================================= */}
           {!isSearching && activeTab === 'all' && heroMovie && (
             <section className="cinefilia-hero">
               <img
+                key={`hero-bg-${heroMovie.id || heroIndex}`}
                 src={heroMovie.backdrop_url || heroMovie.poster_url}
                 alt={heroMovie.title}
                 className="hero-backdrop-media"
@@ -390,11 +484,14 @@ export default function App() {
               <div className="hero-gradient-vertical" />
               <div className="hero-gradient-horizontal" />
 
-              <div className="hero-content-box">
+              <div className="hero-content-box" key={`hero-content-${heroMovie.id || heroIndex}`}>
                 <div className="hero-tags-meta">
-                  <span className="hero-genre-tag">CLÁSSICO</span>
+                  <span className="hero-genre-tag">DESTAQUE</span>
                   <span className="hero-meta-detail">
                     {heroMovie.release_year} · Estrelando Tom Hanks
+                  </span>
+                  <span className="hero-carousel-badge">
+                    {heroIndex + 1} de {heroMoviesList.length}
                   </span>
                 </div>
 
@@ -442,6 +539,58 @@ export default function App() {
                   </button>
                 </div>
               </div>
+
+              {/* Controles de Navegação Anterior e Próximo */}
+              {heroMoviesList.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    className="hero-arrow-btn hero-arrow-left"
+                    onClick={handlePrevHero}
+                    aria-label="Filme anterior"
+                    title="Filme anterior"
+                  >
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="hero-arrow-btn hero-arrow-right"
+                    onClick={handleNextHero}
+                    aria-label="Próximo filme"
+                    title="Próximo filme"
+                  >
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </button>
+
+                  {/* Indicadores / Pílulas do Carrossel de 40s com barra de tempo */}
+                  <div className="hero-carousel-dots">
+                    {heroMoviesList.map((m, idx) => {
+                      const isCurrent = idx === heroIndex;
+                      return (
+                        <button
+                          key={m.id || idx}
+                          type="button"
+                          className={`hero-dot-item ${isCurrent ? 'active' : ''}`}
+                          onClick={() => handleSelectHero(idx)}
+                          aria-label={`Ir para filme ${idx + 1}: ${m.title}`}
+                          title={`${idx + 1}. ${m.title}`}
+                        >
+                          <span className="hero-dot-label">{idx + 1}</span>
+                          <span className="hero-dot-name">{m.title}</span>
+                          {isCurrent && (
+                            <span key={heroTimerKey} className="hero-dot-timer-fill" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
 
               {/* Marca d'água lateral vertical */}
               <div className="hero-vertical-watermark">
