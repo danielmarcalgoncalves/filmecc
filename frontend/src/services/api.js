@@ -57,8 +57,12 @@ async function apiRequest(endpoint, options = {}) {
     }
     const errorMsg = data.error || data.message || `Erro na requisição (${response.status})`;
     const err = new Error(errorMsg);
+    err.status = response.status;
     err.requireVerification = data.requireVerification;
     err.email = data.email;
+    err.isLimitReached = Boolean(data.isLimitReached || data.limite);
+    err.limite = data.limite;
+    err.papel = data.papelAtual || data.papel;
     throw err;
   }
 

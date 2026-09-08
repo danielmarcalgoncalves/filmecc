@@ -35,33 +35,44 @@ async function addFavorite(req, res) {
 
     const papelUsuario = req.usuarioPapel || 'usuario';
 
-    // Regra RBAC para Usuário Comum: limite máximo de 5 favoritos
-    // Usuários Premium e Admin possuem favoritos ilimitados
+    // Regra RBAC para limite de favoritos:
+    // - Usuário Comum: limite máximo de 5 favoritos
+    // - Usuário Premium: limite máximo de 20 favoritos
+    // - Admin: ilimitado
+    let limite = null;
     if (papelUsuario === 'usuario') {
+      limite = 5;
+    } else if (papelUsuario === 'premium') {
+      limite = 20;
+    }
+
+    if (limite !== null) {
       const [favCountRows] = await pool.query(
         'SELECT COUNT(*) as total FROM favoritos WHERE usuario_id = ?',
         [usuarioId]
       );
       const totalFavoritos = favCountRows[0].total;
 
-      // Se já possui 5 e está tentando adicionar um novo filme que ainda não está favoritado
+      // Se já possui o limite e está tentando adicionar um novo filme que ainda não está favoritado
       const [alreadyFav] = await pool.query(
         'SELECT id FROM favoritos WHERE usuario_id = ? AND tmdb_movie_id = ?',
         [usuarioId, tmdb_movie_id]
       );
 
-      if (totalFavoritos >= 5 && alreadyFav.length === 0) {
+      if (totalFavoritos >= limite && alreadyFav.length === 0) {
+        const nomePlano = papelUsuario === 'usuario' ? 'Usuário Comum' : 'Usuário Premium';
         sendLog('BLOQUEIO_LIMITE_FAVORITOS_403', req, {
-          motivo: 'Limite de 5 favoritos atingido para Usuário Comum',
+          motivo: `Limite de ${limite} favoritos atingido para ${nomePlano}`,
           tmdb_movie_id,
           titulo,
           papelAtual: papelUsuario,
-          limite: 5
+          limite
         });
         return res.status(403).json({
-          error: 'Limite de 5 favoritos atingido para o plano Usuário Comum. Faça upgrade para o plano Premium para favoritar filmes ilimitados!',
+          error: `Limite de ${limite} filmes favoritos atingido para o plano ${nomePlano}.`,
+          isLimitReached: true,
           papelAtual: papelUsuario,
-          limite: 5
+          limite
         });
       }
     }

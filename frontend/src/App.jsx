@@ -3,6 +3,7 @@ import Navbar from './components/Navbar';
 import AuthModal from './components/AuthModal';
 import GuestActionModal from './components/GuestActionModal';
 import LogoutModal from './components/LogoutModal';
+import FavoriteLimitModal from './components/FavoriteLimitModal';
 import Carousel from './components/Carousel';
 import MovieCard from './components/MovieCard';
 import MovieDetailModal from './components/MovieDetailModal';
@@ -32,6 +33,12 @@ export default function App() {
   const [authModalState, setAuthModalState] = useState({ isOpen: false, initialTab: 'login' });
   const [guestActionModal, setGuestActionModal] = useState({ isOpen: false, type: 'favorite', movieTitle: '' });
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [favoriteLimitModal, setFavoriteLimitModal] = useState({
+    isOpen: false,
+    limit: 5,
+    role: 'usuario',
+    movieTitle: ''
+  });
 
   // Filtros e Navegação
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'favorites' | 'comments' | 'lists'
@@ -226,6 +233,20 @@ export default function App() {
         setFavorites((prev) => prev.filter((f) => f.tmdb_movie_id !== movie.id));
         showToast(`"${movie.title}" removido dos favoritos.`, 'success');
       } else {
+        // Validação preventiva do limite de favoritos para Usuário Comum (5) e Premium (20)
+        const userRole = user?.papel || user?.role || 'usuario';
+        const limitForRole = userRole === 'usuario' ? 5 : userRole === 'premium' ? 20 : null;
+
+        if (limitForRole !== null && favorites.length >= limitForRole) {
+          setFavoriteLimitModal({
+            isOpen: true,
+            limit: limitForRole,
+            role: userRole,
+            movieTitle: movie.title || ''
+          });
+          return;
+        }
+
         await api.favorites.add(movie.id, movie.title, movie.poster_path);
         setFavorites((prev) => [
           {
@@ -240,7 +261,17 @@ export default function App() {
         showToast(`"${movie.title}" adicionado aos favoritos!`, 'success');
       }
     } catch (err) {
-      showToast(err.message || 'Erro ao atualizar favoritos.', 'error');
+      if (err.isLimitReached || err.status === 403 || (err.message && err.message.toLowerCase().includes('limite'))) {
+        const userRole = user?.papel || user?.role || 'usuario';
+        setFavoriteLimitModal({
+          isOpen: true,
+          limit: err.limite || (userRole === 'usuario' ? 5 : 20),
+          role: userRole,
+          movieTitle: movie?.title || ''
+        });
+      } else {
+        showToast(err.message || 'Erro ao atualizar favoritos.', 'error');
+      }
     }
   };
 
@@ -940,6 +971,21 @@ export default function App() {
         user={user}
         onClose={() => setShowLogoutModal(false)}
         onConfirm={() => handleLogout('acao_do_usuario')}
+      />
+
+      {/* POP-UP DE AVISO DE LIMITE DE CURTIDAS / FAVORITOS ATINGIDO */}
+      <FavoriteLimitModal
+        isOpen={favoriteLimitModal.isOpen}
+        user={user}
+        limit={favoriteLimitModal.limit}
+        role={favoriteLimitModal.role}
+        movieTitle={favoriteLimitModal.movieTitle}
+        onClose={() => setFavoriteLimitModal((prev) => ({ ...prev, isOpen: false }))}
+        onGoToProfile={() => {
+          setFavoriteLimitModal((prev) => ({ ...prev, isOpen: false }));
+          setCurrentView('profile');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
       />
 
       {/* MODAL DE AUTENTICAÇÃO (LOGIN / CADASTRO / OTP / RECUPERAÇÃO) */}
