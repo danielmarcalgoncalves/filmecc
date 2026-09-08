@@ -111,13 +111,17 @@ export const api = {
       return await apiRequest('/auth/me');
     },
 
-    async logout() {
+    async logout(motivo = 'acao_do_usuario') {
       try {
-        await apiRequest('/auth/logout', { method: 'POST' });
+        await apiRequest('/auth/logout', {
+          method: 'POST',
+          body: JSON.stringify({ motivo })
+        });
       } catch {
         // Desconsidera erro na chamada se a sessão já estiver encerrada
       }
       clearSession();
+      localStorage.removeItem('tomhanks_last_activity');
     },
 
     async forgotPassword(email) {

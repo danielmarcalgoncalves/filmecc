@@ -79,8 +79,10 @@ async function login(req, res) {
 }
 
 async function logout(req, res) {
+  const motivo = req.body?.motivo || 'acao_do_usuario';
   sendLog('LOGOUT', req, {
-    usuario_id: req.usuarioId || req.usuario?.id || 'sessao_encerrada'
+    usuario_id: req.usuarioId || req.usuario?.id || 'sessao_encerrada',
+    motivo
   });
   clearAuthCookie(res);
   return res.json({ message: 'Sessão finalizada com sucesso.' });

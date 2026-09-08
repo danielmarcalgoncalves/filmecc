@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Navbar from './components/Navbar';
 import AuthModal from './components/AuthModal';
 import GuestActionModal from './components/GuestActionModal';
+import LogoutModal from './components/LogoutModal';
 import Carousel from './components/Carousel';
 import MovieCard from './components/MovieCard';
 import MovieDetailModal from './components/MovieDetailModal';
@@ -29,6 +30,7 @@ export default function App() {
   // Modais de Autenticação e Ação de Visitante
   const [authModalState, setAuthModalState] = useState({ isOpen: false, initialTab: 'login' });
   const [guestActionModal, setGuestActionModal] = useState({ isOpen: false, type: 'favorite', movieTitle: '' });
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Filtros e Navegação
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'favorites' | 'comments' | 'lists'
@@ -51,10 +53,23 @@ export default function App() {
 
   // Carregamento inicial da sessão oficial consultando o backend diretamente no banco
   useEffect(() => {
+    // Se o usuário recarregar após ficar mais de 15 minutos inativo
+    const storedLast = Number(localStorage.getItem('tomhanks_last_activity'));
+    if (storedLast && Date.now() - storedLast >= 15 * 60 * 1000) {
+      localStorage.removeItem('tomhanks_last_activity');
+      api.auth.logout('inatividade_15_minutos').catch(() => {});
+      setUser(null);
+      setAuthChecking(false);
+      showToast('Sua sessão expirou por inatividade. Faça login novamente.', 'error');
+      setAuthModalState({ isOpen: true, initialTab: 'login' });
+      return;
+    }
+
     api.auth.getMe()
       .then((data) => {
         if (data && data.usuario) {
           setUser(data.usuario);
+          localStorage.setItem('tomhanks_last_activity', Date.now().toString());
         } else {
           setUser(null);
         }
@@ -119,9 +134,60 @@ export default function App() {
     }
   };
 
-  const handleLogout = async () => {
+  // -------------------------------------------------------------
+  // CONTROLE DE TIMEOUT DE SESSÃO POR INATIVIDADE (15 MINUTOS)
+  // -------------------------------------------------------------
+  const INACTIVITY_LIMIT_MS = 15 * 60 * 1000; // 15 minutos = 900.000 ms
+  const lastActivityRef = useRef(Date.now());
+
+  useEffect(() => {
+    if (!user) return;
+
+    lastActivityRef.current = Date.now();
+    localStorage.setItem('tomhanks_last_activity', Date.now().toString());
+
+    const registerActivity = () => {
+      lastActivityRef.current = Date.now();
+      localStorage.setItem('tomhanks_last_activity', Date.now().toString());
+    };
+
+    const trackedEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+    trackedEvents.forEach((evt) => window.addEventListener(evt, registerActivity, { passive: true }));
+
+    const checkInterval = setInterval(async () => {
+      const storedLast = Number(localStorage.getItem('tomhanks_last_activity')) || lastActivityRef.current;
+      const elapsed = Date.now() - Math.max(lastActivityRef.current, storedLast);
+
+      if (elapsed >= INACTIVITY_LIMIT_MS) {
+        clearInterval(checkInterval);
+        try {
+          await api.auth.logout('inatividade_15_minutos');
+        } catch (_) {}
+
+        setUser(null);
+        setFavorites([]);
+        setComments([]);
+        setWatchlist([]);
+        setSelectedMovie(null);
+        setCurrentView('catalog');
+        setShowLogoutModal(false);
+        localStorage.removeItem('tomhanks_last_activity');
+
+        showToast('Sua sessão expirou por inatividade (mais de 15 minutos sem ações). Faça login novamente.', 'error');
+        setAuthModalState({ isOpen: true, initialTab: 'login' });
+      }
+    }, 10000);
+
+    return () => {
+      trackedEvents.forEach((evt) => window.removeEventListener(evt, registerActivity));
+      clearInterval(checkInterval);
+    };
+  }, [user]);
+
+  const handleLogout = async (motivo = 'acao_do_usuario') => {
+    setShowLogoutModal(false);
     try {
-      await api.auth.logout();
+      await api.auth.logout(motivo);
     } catch (err) {
       console.error('Erro ao efetuar logout:', err);
     }
@@ -131,6 +197,7 @@ export default function App() {
     setWatchlist([]);
     setSelectedMovie(null);
     setCurrentView('catalog');
+    localStorage.removeItem('tomhanks_last_activity');
     showToast('Sessão encerrada com sucesso.', 'success');
   };
 
@@ -427,7 +494,7 @@ export default function App() {
       {/* Navbar Fixa Cinefilia com Efeito Vidro */}
       <Navbar 
         user={user} 
-        onLogout={handleLogout} 
+        onLogout={() => setShowLogoutModal(true)} 
         currentView={currentView}
         onOpenAdmin={() => setCurrentView((prev) => (prev === 'admin' ? 'catalog' : 'admin'))}
         onOpenAuth={(tab) => setAuthModalState({ isOpen: true, initialTab: tab })}
@@ -838,6 +905,14 @@ export default function App() {
         movieTitle={guestActionModal.movieTitle}
         onClose={() => setGuestActionModal({ isOpen: false, type: 'favorite', movieTitle: '' })}
         onOpenAuth={(tab) => setAuthModalState({ isOpen: true, initialTab: tab })}
+      />
+
+      {/* MODAL DE CONFIRMAÇÃO DE LOGOUT COM IMAGEM CINEMATOGRÁFICA */}
+      <LogoutModal
+        isOpen={showLogoutModal}
+        user={user}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={() => handleLogout('acao_do_usuario')}
       />
 
       {/* MODAL DE AUTENTICAÇÃO (LOGIN / CADASTRO / OTP / RECUPERAÇÃO) */}
