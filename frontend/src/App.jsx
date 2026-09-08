@@ -198,7 +198,8 @@ export default function App() {
     setSelectedMovie(null);
     setCurrentView('catalog');
     localStorage.removeItem('tomhanks_last_activity');
-    showToast('Sessão encerrada com sucesso.', 'success');
+    // Reinicia a página e a tela para voltar limpo à tela inicial
+    window.location.href = '/';
   };
 
   const handleRequireAuth = (type = 'favorite', movieTitle = '') => {
