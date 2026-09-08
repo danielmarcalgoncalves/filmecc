@@ -281,6 +281,59 @@ export const api = {
         method: 'DELETE'
       });
     }
+  },
+
+  profile: {
+    /**
+     * Busca os dados completos do perfil do usuario logado
+     * (incluindo foto_url e bio se preenchidos).
+     */
+    async get() {
+      return await apiRequest('/profile');
+    },
+
+    /**
+     * Atualiza nome e/ou bio do usuario logado.
+     * @param {{ nome?: string, bio?: string }} data
+     */
+    async update(data) {
+      return await apiRequest('/profile', {
+        method: 'PUT',
+        body: JSON.stringify(data)
+      });
+    },
+
+    /**
+     * Faz upload de uma nova foto de perfil.
+     * @param {File} file - Objeto File selecionado pelo usuario no input
+     *
+     * IMPORTANTE: nao definir Content-Type no fetch — o browser define sozinho
+     * com o boundary correto do multipart/form-data.
+     */
+    async uploadAvatar(file) {
+      const formData = new FormData();
+      formData.append('avatar', file);
+
+      const token = getToken();
+      const headers = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch('/api/profile/avatar', {
+        method: 'POST',
+        credentials: 'include',
+        headers,
+        body: formData
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const err = new Error(data.error || `Erro no upload (${response.status})`);
+        throw err;
+      }
+      return data;
+    }
   }
 };
 

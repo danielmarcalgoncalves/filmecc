@@ -18,10 +18,18 @@ services:
       - JWT_SECRET=${JWT_SECRET:-XSfvtJaid8X39mPyO3i8iHE6cCrGZZYHJ_FM7KsfXRqJhtqj9tnYkZMv2uFkuOWV_2026}
       - AUTH_SERVICE_URL=http://auth-service:3000
       - LOG_SERVICE_URL=http://log-service:3000
+      # MinIO — Object Storage para fotos de perfil
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-minio}
+      - MINIO_PORT=${MINIO_PORT:-9000}
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin123}
+      - MINIO_BUCKET=${MINIO_BUCKET:-perfil-fotos}
+      - MINIO_PUBLIC_URL=${MINIO_PUBLIC_URL:-http://localhost:9000}
     depends_on:
       - mariadb
       - auth-service
       - log-service
+      - minio
 
   auth-service:
     build:
@@ -68,6 +76,22 @@ services:
     volumes:
       - redis_data:/data
 
+  # MinIO — Object Storage S3-compatível para arquivos de usuário (fotos de perfil)
+  # Console web: http://localhost:9001 | API S3: http://localhost:9000
+  minio:
+    image: minio/minio:latest
+    container_name: tomhanks_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"   # API S3 (usada pelo backend Node.js)
+      - "9001:9001"   # Console web visual
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+    volumes:
+      - minio_data:/data
+
   mariadb:
     image: mariadb:10.11
     container_name: tomhanks_mariadb
@@ -83,3 +107,4 @@ services:
 volumes:
   mariadb_data:
   redis_data:
+  minio_data:

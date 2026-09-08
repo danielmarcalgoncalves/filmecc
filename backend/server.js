@@ -11,6 +11,7 @@ const moviesRoutes = require('./src/routes/moviesRoutes');
 const favoritesRoutes = require('./src/routes/favoritesRoutes');
 const commentsRoutes = require('./src/routes/commentsRoutes');
 const listsRoutes = require('./src/routes/listsRoutes');
+const profileRoutes = require('./src/routes/profileRoutes');
 
 let cookieParser;
 try {
@@ -51,6 +52,7 @@ app.use('/api/movies', moviesRoutes);
 app.use('/api/favorites', favoritesRoutes);
 app.use('/api/comments', commentsRoutes);
 app.use('/api/lists', listsRoutes);
+app.use('/api/profile', profileRoutes);
 
 // Rota direta de administração para Logs de Auditoria (Atividade 5 - RBAC Admin)
 const authController = require('./src/controllers/authController');
@@ -116,7 +118,11 @@ function startServer() {
     console.log('====================================================');
     
     // Inicializa o banco e verifica tabelas
-    initDb().catch(err => console.error('[Database] Inicialização pendente:', err.message));
+    initDb().catch(err => console.error('[Database] Inicializacao pendente:', err.message));
+
+    // Garante que o bucket do MinIO existe (cria se necessario)
+    const { ensureBucket } = require('./src/services/minioClient');
+    ensureBucket().catch(err => console.warn('[MinIO] Bucket nao verificado:', err.message));
   });
 }
 

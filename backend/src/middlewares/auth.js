@@ -50,7 +50,7 @@ async function authMiddleware(req, res, next) {
 
     // Consulta no MariaDB para validar em tempo real (Defesa Anti-IDOR e Anti-Privilege Escalation)
     const [rows] = await pool.query(
-      'SELECT id, nome, email, papel, email_verificado FROM usuarios WHERE id = ?',
+      'SELECT id, nome, email, papel, email_verificado, foto_url, bio FROM usuarios WHERE id = ?',
       [decoded.id]
     );
 
@@ -87,7 +87,9 @@ async function authMiddleware(req, res, next) {
       email: usuarioDb.email,
       papel: papelFinal,
       role: papelFinal,
-      email_verificado: !!usuarioDb.email_verificado
+      email_verificado: !!usuarioDb.email_verificado,
+      foto_url: usuarioDb.foto_url || null,
+      bio: usuarioDb.bio || null
     };
 
     next();

@@ -9,6 +9,7 @@ import MovieDetailModal from './components/MovieDetailModal';
 import ResetPasswordModal from './components/ResetPasswordModal';
 import AdminDashboard from './components/AdminDashboard';
 import ListsView from './components/ListsView';
+import ProfilePage from './components/ProfilePage';
 import Toast from './components/Toast';
 import { api } from './services/api';
 
@@ -503,6 +504,7 @@ export default function App() {
         onSelectTab={handleTabSelect}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
+        onOpenProfile={() => setCurrentView('profile')}
         onHome={() => {
           setActiveTab('all');
           setActiveGenre('Todos');
@@ -512,8 +514,17 @@ export default function App() {
         }}
       />
 
-      {/* Visão de Administração (RBAC) */}
-      {currentView === 'admin' && user?.papel === 'admin' ? (
+      {/* Visao de Perfil do Usuario */}
+      {currentView === 'profile' && user ? (
+        <main className="cinefilia-main-body pt-16">
+          <ProfilePage
+            user={user}
+            showToast={showToast}
+            onUpdateUser={(updates) => setUser(prev => ({ ...prev, ...updates }))}
+            onBack={() => setCurrentView('catalog')}
+          />
+        </main>
+      ) : currentView === 'admin' && user?.papel === 'admin' ? (
         <main className="cinefilia-main-body pt-16">
           <AdminDashboard 
             user={user} 

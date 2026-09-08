@@ -10,7 +10,8 @@ export default function Navbar({
   onSelectTab,
   searchQuery = '',
   setSearchQuery,
-  onHome
+  onHome,
+  onOpenProfile
 }) {
   return (
     <header className="cinefilia-navbar">
@@ -107,16 +108,29 @@ export default function Navbar({
                 </button>
               )}
 
-              {/* Avatar e Perfil */}
-              <div className="user-profile-badge" title={`Logado como: ${user.email}`}>
+              {/* Avatar e Perfil — clicavel para abrir a pagina de perfil */}
+              <button
+                type="button"
+                className="user-profile-badge user-profile-badge-btn"
+                title={`Perfil de ${user.nome} — clique para editar`}
+                onClick={() => onOpenProfile && onOpenProfile()}
+              >
                 <div className="user-avatar-circle">
-                  {user.nome ? user.nome.charAt(0).toUpperCase() : 'U'}
+                  {user.foto_url ? (
+                    <img
+                      src={user.foto_url}
+                      alt={`Foto de ${user.nome}`}
+                      className="user-avatar-photo"
+                    />
+                  ) : (
+                    user.nome ? user.nome.charAt(0).toUpperCase() : 'U'
+                  )}
                 </div>
                 <span className="user-display-name">{user.nome}</span>
                 <span className={`role-tag role-${user.papel || 'usuario'}`}>
                   {user.papel === 'admin' ? 'Admin' : user.papel === 'premium' ? 'Premium' : 'Membro'}
                 </span>
-              </div>
+              </button>
 
               {/* Botão Sair */}
               <button

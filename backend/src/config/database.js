@@ -63,6 +63,20 @@ async function initDb() {
       // Ignorar se a coluna já existir
     }
 
+    // Tentar adicionar as colunas de perfil: foto_url e bio (MinIO integration)
+    try {
+      await connection.query(`ALTER TABLE usuarios ADD COLUMN foto_url VARCHAR(500) DEFAULT NULL;`);
+      console.log('[Database] Coluna foto_url adicionada na tabela usuarios.');
+    } catch (e) {
+      // Ignorar se a coluna já existir (ER_DUP_FIELDNAME)
+    }
+    try {
+      await connection.query(`ALTER TABLE usuarios ADD COLUMN bio TEXT DEFAULT NULL;`);
+      console.log('[Database] Coluna bio adicionada na tabela usuarios.');
+    } catch (e) {
+      // Ignorar se a coluna já existir
+    }
+
     // Criação da tabela de códigos de verificação de e-mail (OTP)
     await connection.query(`
       CREATE TABLE IF NOT EXISTS codigos_verificacao (
