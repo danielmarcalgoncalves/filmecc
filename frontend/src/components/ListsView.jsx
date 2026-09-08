@@ -12,7 +12,8 @@ export default function ListsView({
   watchedMovieIds = new Set(),
   watchlistMovieIds = new Set(),
   onToggleFavorite,
-  onToggleWatchlist
+  onToggleWatchlist,
+  initialSelectedListId = null
 }) {
   const [listsData, setListsData] = useState([]);
   const [cotas, setCotas] = useState({
@@ -49,8 +50,16 @@ export default function ListsView({
     setLoading(true);
     try {
       const res = await api.lists.getAll();
-      setListsData(res.listas || []);
+      const loadedLists = res.listas || [];
+      setListsData(loadedLists);
       if (res.cotas) setCotas(res.cotas);
+
+      if (initialSelectedListId) {
+        const found = loadedLists.find(l => String(l.id) === String(initialSelectedListId));
+        if (found) {
+          handleOpenList(found);
+        }
+      }
     } catch (err) {
       console.error('Erro ao carregar listas:', err);
       if (onShowToast) onShowToast(err.message || 'Erro ao carregar listas.', 'error');
@@ -58,6 +67,15 @@ export default function ListsView({
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (initialSelectedListId && listsData.length > 0) {
+      const found = listsData.find(l => String(l.id) === String(initialSelectedListId));
+      if (found && selectedList?.id !== found.id) {
+        handleOpenList(found);
+      }
+    }
+  }, [initialSelectedListId]);
 
   const handleOpenList = async (list) => {
     setLoadingSelectedList(true);

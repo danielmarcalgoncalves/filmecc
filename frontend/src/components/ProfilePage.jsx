@@ -1,48 +1,114 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { api } from '../services/api';
 
 /**
  * ProfilePage
- * Pagina de perfil do usuario autenticado.
+ * Página completa de perfil do usuário.
  *
- * Funcionalidades:
- * - Exibe foto de perfil (ou inicial do nome se nao houver foto)
- * - Upload de nova foto com preview imediato antes de enviar
- * - Edicao de nome e bio
- * - Feedback via prop showToast (mesmo sistema do App.jsx)
+ * Visão Inicial (Leitura):
+ * - Foto de perfil (MinIO)
+ * - Nome, email, papel/badge e bio do usuário
+ * - Botão "Editar Perfil" no canto superior direito
+ * - Carrossel de Filmes Favoritados com rolagem suave e clique para ver detalhes
+ * - Seção de Listas do usuário com nomes e cards clicáveis direcionando para o painel de listas
+ *
+ * Visão de Edição:
+ * - Aberta ao clicar em "Editar Perfil"
+ * - Permite trocar a foto (MinIO), editar o nome de exibição e a bio
+ * - Botões Salvar Alterações e Cancelar/Voltar
  */
-export default function ProfilePage({ user, onUpdateUser, showToast, onBack }) {
-  const [profile, setProfile]         = useState(null);
-  const [loading, setLoading]         = useState(true);
-  const [saving, setSaving]           = useState(false);
-  const [uploading, setUploading]     = useState(false);
-  const [nome, setNome]               = useState('');
-  const [bio, setBio]                 = useState('');
-  const [previewUrl, setPreviewUrl]   = useState(null);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const fileInputRef = useRef(null);
+export default function ProfilePage({
+  user,
+  onUpdateUser,
+  showToast,
+  onBack,
+  favorites = [],
+  allMovies = [],
+  onSelectMovie,
+  onNavigateToLists,
+  favoriteMovieIds = new Set(),
+  watchlistMovieIds = new Set(),
+  onToggleFavorite,
+  onToggleWatchlist
+}) {
+  const [profile, setProfile]             = useState(null);
+  const [loading, setLoading]             = useState(true);
+  const [isEditing, setIsEditing]         = useState(false);
+  const [saving, setSaving]               = useState(false);
+  const [uploading, setUploading]         = useState(false);
+  const [nome, setNome]                   = useState('');
+  const [bio, setBio]                     = useState('');
+  const [previewUrl, setPreviewUrl]       = useState(null);
+  const [selectedFile, setSelectedFile]   = useState(null);
+  const [userLists, setUserLists]         = useState([]);
+  const [loadingLists, setLoadingLists]   = useState(false);
 
-  // Carrega perfil completo ao montar
+  const fileInputRef = useRef(null);
+  const carouselScrollRef = useRef(null);
+
+  // Carrega os dados do perfil e as listas criadas pelo usuário
   useEffect(() => {
     setLoading(true);
     api.profile.get()
-      .then(data => {
+      .then((data) => {
         setProfile(data.usuario);
         setNome(data.usuario.nome || '');
         setBio(data.usuario.bio || '');
       })
-      .catch(() => showToast('Erro ao carregar perfil.', 'error'))
+      .catch(() => showToast('Erro ao carregar dados do perfil.', 'error'))
       .finally(() => setLoading(false));
+
+    loadUserLists();
   }, []);
 
-  // Quando o usuario escolhe um arquivo, exibe preview local
+  const loadUserLists = async () => {
+    setLoadingLists(true);
+    try {
+      const res = await api.lists.getAll();
+      setUserLists(res.listas || []);
+    } catch (err) {
+      console.warn('Erro ao carregar listas do usuário:', err.message);
+    } finally {
+      setLoadingLists(false);
+    }
+  };
+
+  // Mapeia os favoritos para a lista completa com poster, título, nota e sinopse
+  const favoriteMovies = useMemo(() => {
+    if (!favorites || favorites.length === 0) return [];
+    return favorites.map((fav) => {
+      const full = allMovies.find((m) => m.id === fav.tmdb_movie_id);
+      if (full) return full;
+      return {
+        id: fav.tmdb_movie_id,
+        title: fav.titulo,
+        poster_path: fav.poster_path,
+        poster_url: fav.poster_url || (fav.poster_path ? `https://image.tmdb.org/t/p/w500${fav.poster_path}` : null),
+        vote_average: fav.vote_average || 0,
+        release_date: fav.release_date || '',
+        release_year: fav.release_year || (fav.release_date ? fav.release_date.slice(0, 4) : '')
+      };
+    });
+  }, [favorites, allMovies]);
+
+  // Rolagem suave do carrossel de favoritos
+  const handleScrollCarousel = (direction) => {
+    if (carouselScrollRef.current) {
+      carouselScrollRef.current.scrollBy({
+        left: direction * 320,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  // Seleção e preview de foto de perfil
   function handleFileSelect(e) {
     const file = e.target.files[0];
     if (!file) return;
 
     const tiposValidos = ['image/jpeg', 'image/png', 'image/webp'];
     if (!tiposValidos.includes(file.type)) {
-      showToast('Formato invalido. Use JPEG, PNG ou WebP.', 'error');
+      showToast('Formato inválido. Use JPEG, PNG ou WebP.', 'error');
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -54,17 +120,16 @@ export default function ProfilePage({ user, onUpdateUser, showToast, onBack }) {
     setPreviewUrl(URL.createObjectURL(file));
   }
 
-  // Faz upload da foto selecionada para o MinIO
+  // Upload da foto para o MinIO
   async function handleUploadAvatar() {
     if (!selectedFile) return;
     setUploading(true);
     try {
       const data = await api.profile.uploadAvatar(selectedFile);
       showToast('Foto de perfil atualizada!', 'success');
-      setProfile(prev => ({ ...prev, foto_url: data.foto_url }));
+      setProfile((prev) => ({ ...prev, foto_url: data.foto_url }));
       setPreviewUrl(null);
       setSelectedFile(null);
-      // Atualiza o usuario no App.jsx (para o Navbar refletir a foto nova)
       if (onUpdateUser) onUpdateUser({ foto_url: data.foto_url });
     } catch (err) {
       showToast(err.message || 'Erro ao fazer upload.', 'error');
@@ -73,26 +138,26 @@ export default function ProfilePage({ user, onUpdateUser, showToast, onBack }) {
     }
   }
 
-  // Cancela a selecao da foto
   function handleCancelPreview() {
     setPreviewUrl(null);
     setSelectedFile(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
-  // Salva nome e bio no banco
+  // Salva nome e bio
   async function handleSaveProfile(e) {
     e.preventDefault();
     if (!nome.trim()) {
-      showToast('O nome nao pode ficar vazio.', 'error');
+      showToast('O nome não pode ficar vazio.', 'error');
       return;
     }
     setSaving(true);
     try {
       const data = await api.profile.update({ nome: nome.trim(), bio: bio.trim() });
       showToast('Perfil salvo com sucesso!', 'success');
-      setProfile(prev => ({ ...prev, nome: data.usuario.nome, bio: data.usuario.bio }));
+      setProfile((prev) => ({ ...prev, nome: data.usuario.nome, bio: data.usuario.bio }));
       if (onUpdateUser) onUpdateUser({ nome: data.usuario.nome, bio: data.usuario.bio });
+      setIsEditing(false); // Retorna para a visualização principal
     } catch (err) {
       showToast(err.message || 'Erro ao salvar perfil.', 'error');
     } finally {
@@ -100,7 +165,6 @@ export default function ProfilePage({ user, onUpdateUser, showToast, onBack }) {
     }
   }
 
-  // Foto a exibir: preview local > foto salva > null
   const avatarSrc = previewUrl || profile?.foto_url;
   const inicial = (profile?.nome || user?.nome || 'U').charAt(0).toUpperCase();
 
@@ -115,176 +179,453 @@ export default function ProfilePage({ user, onUpdateUser, showToast, onBack }) {
 
   return (
     <div className="profile-page">
-      {onBack && (
-        <div className="profile-back-bar">
+      {/* Barra de Topo com Navegação e Botão de Editar Perfil */}
+      <div className="profile-top-navbar">
+        {onBack && (
           <button
             type="button"
             className="profile-back-btn"
-            onClick={onBack}
-            title="Voltar ao catálogo"
+            onClick={isEditing ? () => { setIsEditing(false); handleCancelPreview(); } : onBack}
+            title={isEditing ? 'Voltar ao perfil' : 'Voltar ao catálogo'}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6" />
             </svg>
-            Voltar ao Catálogo
+            {isEditing ? 'Voltar ao Perfil' : 'Voltar ao Catálogo'}
           </button>
-        </div>
-      )}
+        )}
 
-      <div className="profile-hero">
-        <div className="profile-hero-bg"></div>
-        <div className="profile-hero-content">
+        {!isEditing && (
+          <button
+            type="button"
+            className="btn-profile-edit-trigger"
+            onClick={() => setIsEditing(true)}
+            title="Editar informações do perfil e foto"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+            <span>Editar Perfil</span>
+          </button>
+        )}
+      </div>
 
-          {/* Avatar + botao de upload */}
-          <div className="profile-avatar-wrapper">
-            <div className="profile-avatar-large">
-              {avatarSrc ? (
-                <img src={avatarSrc} alt="Foto de perfil" className="profile-avatar-img" />
-              ) : (
-                <span className="profile-avatar-initial">{inicial}</span>
+      {/* ====================================================================
+          1. MODO DE EDIÇÃO DO PERFIL (Quando o usuário clica em "Editar Perfil")
+          ==================================================================== */}
+      {isEditing ? (
+        <div className="profile-edit-view animate-fade-in">
+          <div className="profile-edit-header">
+            <h1 className="profile-edit-title">Editar Meu Perfil</h1>
+            <p className="profile-edit-subtitle">Atualize sua foto, nome de exibição e biografia cinematográfica.</p>
+          </div>
+
+          <div className="profile-edit-container">
+            {/* Seção de Troca de Foto de Perfil (MinIO) */}
+            <div className="profile-avatar-edit-box">
+              <div className="profile-avatar-large profile-avatar-interactive">
+                {avatarSrc ? (
+                  <img src={avatarSrc} alt="Foto de perfil" className="profile-avatar-img" />
+                ) : (
+                  <span className="profile-avatar-initial">{inicial}</span>
+                )}
+
+                <button
+                  type="button"
+                  className="profile-avatar-overlay"
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Selecionar nova foto de perfil"
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                    <circle cx="12" cy="13" r="4" />
+                  </svg>
+                  <span>Alterar Foto</span>
+                </button>
+              </div>
+
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                style={{ display: 'none' }}
+                id="avatar-file-input"
+              />
+
+              {previewUrl && (
+                <div className="profile-preview-actions">
+                  <button
+                    type="button"
+                    className="btn-profile-confirm"
+                    onClick={handleUploadAvatar}
+                    disabled={uploading}
+                  >
+                    {uploading ? (
+                      <>
+                        <span className="btn-spinner-sm"></span>
+                        Enviando...
+                      </>
+                    ) : (
+                      <>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        Confirmar Foto
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-profile-cancel-preview"
+                    onClick={handleCancelPreview}
+                    disabled={uploading}
+                  >
+                    Cancelar
+                  </button>
+                </div>
               )}
-              {/* Overlay de hover para trocar foto */}
-              <button
-                type="button"
-                className="profile-avatar-overlay"
-                onClick={() => fileInputRef.current?.click()}
-                title="Trocar foto de perfil"
-              >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                  <circle cx="12" cy="13" r="4"/>
-                </svg>
-                <span>Trocar foto</span>
-              </button>
+
+              <p className="profile-avatar-hint">Formatos: JPEG, PNG ou WebP (máx. 5MB). Armazenamento no MinIO.</p>
             </div>
 
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              ref={fileInputRef}
-              onChange={handleFileSelect}
-              style={{ display: 'none' }}
-              id="avatar-file-input"
-            />
+            {/* Formulário de Edição de Dados */}
+            <form className="profile-form-card" onSubmit={handleSaveProfile}>
+              <div className="profile-field">
+                <label htmlFor="profile-nome" className="profile-label">Nome de Exibição</label>
+                <input
+                  id="profile-nome"
+                  type="text"
+                  className="profile-input"
+                  value={nome}
+                  onChange={(e) => setNome(e.target.value)}
+                  maxLength={100}
+                  placeholder="Seu nome"
+                  required
+                />
+              </div>
 
-            {/* Botoes de confirmar/cancelar preview */}
-            {previewUrl && (
-              <div className="profile-preview-actions">
+              <div className="profile-field">
+                <label htmlFor="profile-email" className="profile-label">E-mail (fixo da conta)</label>
+                <input
+                  id="profile-email"
+                  type="email"
+                  className="profile-input profile-input-disabled"
+                  value={profile?.email || ''}
+                  disabled
+                />
+              </div>
+
+              <div className="profile-field">
+                <label htmlFor="profile-bio" className="profile-label">
+                  Biografia Cinematográfica <span className="profile-label-hint">({(bio || '').length}/500)</span>
+                </label>
+                <textarea
+                  id="profile-bio"
+                  className="profile-textarea"
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  maxLength={500}
+                  rows={4}
+                  placeholder="Compartilhe seus gostos sobre cinema, filmes favoritos do Tom Hanks, diretores prediletos..."
+                />
+              </div>
+
+              <div className="profile-form-actions">
                 <button
                   type="button"
-                  className="btn-profile-confirm"
-                  onClick={handleUploadAvatar}
-                  disabled={uploading}
-                >
-                  {uploading ? (
-                    <>
-                      <span className="btn-spinner-sm"></span>
-                      Enviando...
-                    </>
-                  ) : (
-                    <>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
-                      Confirmar foto
-                    </>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  className="btn-profile-cancel-preview"
-                  onClick={handleCancelPreview}
-                  disabled={uploading}
+                  className="btn-profile-cancel-edit"
+                  onClick={() => { setIsEditing(false); handleCancelPreview(); }}
+                  disabled={saving}
                 >
                   Cancelar
                 </button>
-              </div>
-            )}
-          </div>
 
-          {/* Nome e role badge */}
-          <div className="profile-hero-info">
-            <h1 className="profile-hero-name">{profile?.nome}</h1>
-            <span className={`profile-role-badge role-${profile?.papel || 'usuario'}`}>
-              {profile?.papel === 'admin' ? '🛡 Admin' : profile?.papel === 'premium' ? '⭐ Premium' : '🎬 Membro'}
-            </span>
-            <p className="profile-hero-email">{profile?.email}</p>
-            {profile?.criado_em && (
-              <p className="profile-member-since">
-                Membro desde {new Date(profile.criado_em).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-              </p>
-            )}
+                <button
+                  type="submit"
+                  className="btn-profile-save"
+                  disabled={saving}
+                >
+                  {saving ? (
+                    <>
+                      <span className="btn-spinner-sm"></span>
+                      Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                        <polyline points="17 21 17 13 7 13 7 21" />
+                        <polyline points="7 3 7 8 15 8" />
+                      </svg>
+                      Salvar Alterações
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
-      </div>
+      ) : (
+        /* ====================================================================
+            2. MODO PRINCIPAL DE VISUALIZAÇÃO DO PERFIL
+            ==================================================================== */
+        <div className="profile-view-content animate-fade-in">
+          {/* Hero do Perfil: Foto, Nome, Bio e Estatísticas */}
+          <section className="profile-hero-card">
+            <div className="profile-hero-backdrop-glow" />
 
-      {/* Formulario de edicao */}
-      <div className="profile-form-section">
-        <form className="profile-form-card" onSubmit={handleSaveProfile}>
-          <h2 className="profile-form-title">Editar Perfil</h2>
+            <div className="profile-hero-main">
+              <div className="profile-avatar-display-wrapper">
+                <div className="profile-avatar-large profile-avatar-glow">
+                  {profile?.foto_url ? (
+                    <img src={profile.foto_url} alt={profile.nome} className="profile-avatar-img" />
+                  ) : (
+                    <span className="profile-avatar-initial">{inicial}</span>
+                  )}
+                </div>
+              </div>
 
-          <div className="profile-field">
-            <label htmlFor="profile-nome" className="profile-label">Nome de exibicao</label>
-            <input
-              id="profile-nome"
-              type="text"
-              className="profile-input"
-              value={nome}
-              onChange={e => setNome(e.target.value)}
-              maxLength={100}
-              placeholder="Seu nome"
-            />
-          </div>
+              <div className="profile-hero-details">
+                <div className="profile-name-row">
+                  <h1 className="profile-user-name">{profile?.nome}</h1>
+                  <span className={`profile-role-badge role-${profile?.papel || 'usuario'}`}>
+                    {profile?.papel === 'admin' ? '🛡 Admin' : profile?.papel === 'premium' ? '⭐ Premium' : '🎬 Membro'}
+                  </span>
+                </div>
 
-          <div className="profile-field">
-            <label htmlFor="profile-email" className="profile-label">E-mail (nao editavel)</label>
-            <input
-              id="profile-email"
-              type="email"
-              className="profile-input profile-input-disabled"
-              value={profile?.email || ''}
-              disabled
-            />
-          </div>
+                <p className="profile-user-email">{profile?.email}</p>
 
-          <div className="profile-field">
-            <label htmlFor="profile-bio" className="profile-label">
-              Bio <span className="profile-label-hint">({(bio || '').length}/500)</span>
-            </label>
-            <textarea
-              id="profile-bio"
-              className="profile-textarea"
-              value={bio}
-              onChange={e => setBio(e.target.value)}
-              maxLength={500}
-              rows={4}
-              placeholder="Conte um pouco sobre voce, seus filmes favoritos..."
-            />
-          </div>
+                {/* Bio do Usuário */}
+                <div className="profile-bio-box">
+                  {profile?.bio && profile.bio.trim() ? (
+                    <p className="profile-bio-text">“{profile.bio.trim()}”</p>
+                  ) : (
+                    <p className="profile-bio-placeholder">
+                      Nenhuma biografia adicionada. Clique em <strong>Editar Perfil</strong> no canto superior para compartilhar seus gostos cinematográficos.
+                    </p>
+                  )}
+                </div>
 
-          <button
-            type="submit"
-            className="btn-profile-save"
-            disabled={saving}
-          >
-            {saving ? (
-              <>
-                <span className="btn-spinner-sm"></span>
-                Salvando...
-              </>
+                {/* Metadados / Badges do Perfil */}
+                <div className="profile-stats-bar">
+                  <div className="profile-stat-item">
+                    <span className="profile-stat-icon">❤️</span>
+                    <span className="profile-stat-val">{favoriteMovies.length}</span>
+                    <span className="profile-stat-label">Favoritos</span>
+                  </div>
+
+                  <div className="profile-stat-item">
+                    <span className="profile-stat-icon">📑</span>
+                    <span className="profile-stat-val">{userLists.length}</span>
+                    <span className="profile-stat-label">Listas</span>
+                  </div>
+
+                  {profile?.criado_em && (
+                    <div className="profile-stat-item profile-stat-since">
+                      <span className="profile-stat-icon">🗓</span>
+                      <span className="profile-stat-label">
+                        No catálogo desde {new Date(profile.criado_em).toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* ====================================================================
+              SEÇÃO 1: FILMES FAVORITOS (Carrossel Horizontal)
+              ==================================================================== */}
+          <section className="profile-favorites-section">
+            <div className="profile-section-header">
+              <div className="profile-section-title-wrap">
+                <h2 className="profile-section-title">
+                  <span className="profile-section-icon">❤️</span> Meus Filmes Favoritos
+                </h2>
+                <span className="profile-badge-counter">{favoriteMovies.length}</span>
+              </div>
+
+              {favoriteMovies.length > 0 && (
+                <div className="profile-carousel-controls">
+                  <button
+                    type="button"
+                    className="profile-carousel-arrow"
+                    onClick={() => handleScrollCarousel(-1)}
+                    title="Rolar favoritos para esquerda"
+                    aria-label="Rolar favoritos para esquerda"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    className="profile-carousel-arrow"
+                    onClick={() => handleScrollCarousel(1)}
+                    title="Rolar favoritos para direita"
+                    aria-label="Rolar favoritos para direita"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {favoriteMovies.length > 0 ? (
+              <div className="profile-carousel-container">
+                <div className="profile-carousel-track" ref={carouselScrollRef}>
+                  {favoriteMovies.map((movie) => (
+                    <div
+                      key={movie.id}
+                      className="profile-movie-card"
+                      onClick={() => onSelectMovie && onSelectMovie(movie)}
+                      title={`Clique para ver detalhes de ${movie.title}`}
+                    >
+                      <div className="profile-movie-poster-wrap">
+                        {movie.poster_url || movie.poster_path ? (
+                          <img
+                            src={movie.poster_url || `https://image.tmdb.org/t/p/w500${movie.poster_path}`}
+                            alt={movie.title}
+                            className="profile-movie-poster"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="profile-movie-poster-fallback">
+                            <span>{movie.title}</span>
+                          </div>
+                        )}
+                        <div className="profile-movie-poster-overlay">
+                          <span className="profile-movie-view-label">Ver Detalhes</span>
+                        </div>
+                        {movie.vote_average > 0 && (
+                          <span className="profile-movie-rating-badge">
+                            ★ {Number(movie.vote_average).toFixed(1)}
+                          </span>
+                        )}
+                      </div>
+                      <div className="profile-movie-info">
+                        <h4 className="profile-movie-title">{movie.title}</h4>
+                        {movie.release_year && (
+                          <span className="profile-movie-year">{movie.release_year}</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             ) : (
-              <>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-                  <polyline points="17 21 17 13 7 13 7 21"/>
-                  <polyline points="7 3 7 8 15 8"/>
-                </svg>
-                Salvar alteracoes
-              </>
+              <div className="profile-empty-card">
+                <span className="profile-empty-icon">🍿</span>
+                <h3>Nenhum filme favoritado ainda</h3>
+                <p>Navegue pelo catálogo e clique no ícone de coração para guardar seus filmes favoritos aqui.</p>
+                {onBack && (
+                  <button type="button" className="btn-profile-explore" onClick={onBack}>
+                    Explorar Catálogo de Filmes
+                  </button>
+                )}
+              </div>
             )}
-          </button>
-        </form>
-      </div>
+          </section>
+
+          {/* ====================================================================
+              SEÇÃO 2: MINHAS LISTAS (Cards Clicáveis que Navegam para ListsView)
+              ==================================================================== */}
+          <section className="profile-lists-section">
+            <div className="profile-section-header">
+              <div className="profile-section-title-wrap">
+                <h2 className="profile-section-title">
+                  <span className="profile-section-icon">📑</span> Minhas Listas & Coleções
+                </h2>
+                <span className="profile-badge-counter">{userLists.length}</span>
+              </div>
+
+              {onNavigateToLists && (
+                <button
+                  type="button"
+                  className="btn-profile-view-all-lists"
+                  onClick={() => onNavigateToLists(null)}
+                  title="Abrir painel completo de listas"
+                >
+                  <span>Abrir Painel de Listas</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {loadingLists ? (
+              <div className="profile-lists-loading">
+                <span className="btn-spinner-sm"></span>
+                <span>Carregando suas listas...</span>
+              </div>
+            ) : userLists.length > 0 ? (
+              <div className="profile-lists-grid">
+                {userLists.map((lista) => {
+                  const isWatchlist = Boolean(lista.is_watchlist);
+                  const total = lista.total_filmes || 0;
+
+                  return (
+                    <div
+                      key={lista.id}
+                      className={`profile-list-card ${isWatchlist ? 'is-watchlist-card' : ''}`}
+                      onClick={() => onNavigateToLists && onNavigateToLists(lista.id)}
+                      title={`Clique para abrir a lista "${lista.nome}" no painel`}
+                    >
+                      <div className="profile-list-card-header">
+                        <div className="profile-list-tag-row">
+                          <span className={`profile-list-tag ${isWatchlist ? 'tag-watchlist' : 'tag-custom'}`}>
+                            {isWatchlist ? '★ Watchlist Fixa' : '📁 Seleção'}
+                          </span>
+                          <span className="profile-list-count-badge">
+                            {total} {total === 1 ? 'filme' : 'filmes'}
+                          </span>
+                        </div>
+                        <span className="profile-list-arrow-icon">→</span>
+                      </div>
+
+                      <h3 className="profile-list-card-name">{lista.nome}</h3>
+                      <p className="profile-list-card-desc">
+                        {lista.descricao || (isWatchlist ? 'Filmes que pretendo assistir no catálogo.' : 'Lista personalizada criada por você.')}
+                      </p>
+
+                      {/* Miniaturas de pôsteres se houver */}
+                      {lista.posters && lista.posters.length > 0 && (
+                        <div className="profile-list-mini-posters">
+                          {lista.posters.slice(0, 4).map((p, idx) => (
+                            <img
+                              key={p.tmdb_movie_id || idx}
+                              src={p.poster_url || `https://image.tmdb.org/t/p/w200${p.poster_path}`}
+                              alt={p.titulo}
+                              className="profile-list-mini-poster-img"
+                              title={p.titulo}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="profile-empty-card">
+                <span className="profile-empty-icon">📂</span>
+                <h3>Nenhuma lista personalizada</h3>
+                <p>Crie coleções temáticas como "Comédias Anos 90", "Dramas Históricos" e organize suas maratonas.</p>
+                {onNavigateToLists && (
+                  <button type="button" className="btn-profile-explore" onClick={() => onNavigateToLists(null)}>
+                    Criar Minha Primeira Lista
+                  </button>
+                )}
+              </div>
+            )}
+          </section>
+        </div>
+      )}
     </div>
   );
 }

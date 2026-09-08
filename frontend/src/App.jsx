@@ -39,6 +39,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('rating'); // 'rating' | 'year' | 'title'
   const [selectedMovie, setSelectedMovie] = useState(null);
+  const [selectedListId, setSelectedListId] = useState(null);
 
   // Recuperação de senha
   const [resetToken, setResetToken] = useState(() => {
@@ -522,6 +523,19 @@ export default function App() {
             showToast={showToast}
             onUpdateUser={(updates) => setUser(prev => ({ ...prev, ...updates }))}
             onBack={() => setCurrentView('catalog')}
+            favorites={favorites}
+            allMovies={movies}
+            onSelectMovie={setSelectedMovie}
+            onNavigateToLists={(listId) => {
+              setSelectedListId(listId || null);
+              setActiveTab('lists');
+              setCurrentView('catalog');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            favoriteMovieIds={favoriteMovieIds}
+            watchlistMovieIds={watchlistMovieIds}
+            onToggleFavorite={handleToggleFavorite}
+            onToggleWatchlist={handleToggleWatchlist}
           />
         </main>
       ) : currentView === 'admin' && user?.papel === 'admin' ? (
@@ -545,6 +559,7 @@ export default function App() {
             watchlistMovieIds={watchlistMovieIds}
             onToggleFavorite={handleToggleFavorite}
             onToggleWatchlist={handleToggleWatchlist}
+            initialSelectedListId={selectedListId}
           />
         </main>
       ) : (
