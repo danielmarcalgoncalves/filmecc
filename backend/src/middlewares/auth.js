@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { pool } = require('../config/database');
+const { sendLog } = require('../services/logClient');
 
 const JWT_STRONG_FALLBACK = 'XSfvtJaid8X39mPyO3i8iHE6cCrGZZYHJ_FM7KsfXRqJhtqj9tnYkZMv2uFkuOWV_2026';
 const JWT_SECRET = (process.env.JWT_SECRET && process.env.JWT_SECRET.trim().length >= 32)
@@ -63,6 +64,11 @@ async function authMiddleware(req, res, next) {
 
     // Bloqueia contas cujo e-mail ainda não foi confirmado via OTP
     if (usuarioDb.email_verificado === 0 || usuarioDb.email_verificado === false) {
+      sendLog('ACESSO_BLOQUEADO_403', req, {
+        motivo: 'E-mail não verificado',
+        usuario_id: usuarioDb.id,
+        email: usuarioDb.email
+      });
       return res.status(403).json({
         error: 'Acesso bloqueado: Seu e-mail ainda não foi confirmado. Por favor, valide o código de verificação enviado.',
         requireVerification: true,
@@ -102,6 +108,11 @@ function requireRole(...papeisPermitidos) {
     const papelUsuario = req.usuarioPapel || (req.usuario && (req.usuario.papel || req.usuario.role));
     if (!papelUsuario || !papeisPermitidos.includes(papelUsuario)) {
       console.warn(`[RBAC BLOCK] Usuário ID ${req.usuarioId} com papel "${papelUsuario}" tentou acessar rota exclusiva para [${papeisPermitidos.join(', ')}].`);
+      sendLog('BLOQUEIO_RBAC_403', req, {
+        motivo: 'Papel de usuário insuficiente',
+        papelAtual: papelUsuario || 'desconhecido',
+        papeisPermitidos
+      });
       return res.status(403).json({
         error: 'Acesso proibido (403 Forbidden). Seu papel de usuário não possui permissão para realizar esta ação sensível.',
         papelAtual: papelUsuario || 'desconhecido',
@@ -115,6 +126,10 @@ function requireRole(...papeisPermitidos) {
 function requireAdmin(req, res, next) {
   const role = req.usuarioPapel || (req.usuario && (req.usuario.papel || req.usuario.role));
   if (role !== 'admin') {
+    sendLog('BLOQUEIO_RBAC_ADMIN_403', req, {
+      motivo: 'Tentativa de acesso não autorizado a recurso administrativo',
+      papelAtual: role || 'desconhecido'
+    });
     return res.status(403).json({ error: 'Acesso permitido apenas para administradores.' });
   }
   next();

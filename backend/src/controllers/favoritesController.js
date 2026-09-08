@@ -1,4 +1,5 @@
 const { pool } = require('../config/database');
+const { sendLog } = require('../services/logClient');
 
 // Lista todos os filmes favoritos do usuário autenticado
 async function getFavorites(req, res) {
@@ -50,6 +51,13 @@ async function addFavorite(req, res) {
       );
 
       if (totalFavoritos >= 5 && alreadyFav.length === 0) {
+        sendLog('BLOQUEIO_LIMITE_FAVORITOS_403', req, {
+          motivo: 'Limite de 5 favoritos atingido para Usuário Comum',
+          tmdb_movie_id,
+          titulo,
+          papelAtual: papelUsuario,
+          limite: 5
+        });
         return res.status(403).json({
           error: 'Limite de 5 favoritos atingido para o plano Usuário Comum. Faça upgrade para o plano Premium para favoritar filmes ilimitados!',
           papelAtual: papelUsuario,
@@ -65,6 +73,12 @@ async function addFavorite(req, res) {
        ON DUPLICATE KEY UPDATE titulo = VALUES(titulo), poster_path = VALUES(poster_path)`,
       [usuarioId, tmdb_movie_id, titulo, poster_path || null]
     );
+
+    sendLog('FAVORITAR_FILME', req, {
+      tmdb_movie_id,
+      titulo,
+      papel: papelUsuario
+    });
 
     return res.status(201).json({
       message: 'Filme adicionado aos favoritos com sucesso!',
@@ -100,6 +114,10 @@ async function removeFavorite(req, res) {
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Favorito não encontrado para este usuário.' });
     }
+
+    sendLog('DESFAVORITAR_FILME', req, {
+      tmdb_movie_id: movieId
+    });
 
     return res.json({ message: 'Filme removido dos favoritos com sucesso.' });
   } catch (error) {

@@ -1,141 +1,182 @@
-# 🎬 Catálogo de Filmes — Tom Hanks (Atividade 4 · Autorização RBAC)
+# 🎬 Catálogo de Filmes — Tom Hanks (Atividade 5 · Microserviço de Auditoria com Redis Streams)
 
-Aplicação web completa para exploração da filmografia de **Tom Hanks**, com consumo ao vivo da API externa do **TMDB (The Movie Database)** e persistência individual de favoritos e comentários com **segregação de dados por usuário** no **MariaDB**.
-
-Conta com **Arquitetura de Microsserviços Desacoplados** e **Controle de Acesso Baseado em Papéis (RBAC - Role-Based Access Control)** com enforcement rigoroso no servidor backend.
+Aplicação web de alta disponibilidade para exploração da filmografia de **Tom Hanks**, com integração ao vivo da API externa do **TMDB (The Movie Database)**, controle de permissões por papel (**RBAC**), persistência relacional no **MariaDB** e **Microserviço Dedicado de Auditoria e Logs** alimentado por **Redis Streams**.
 
 > 🎓 Projeto desenvolvido para a disciplina de **Computação em Nuvem / Infraestrutura** lecionada pelo professor **[@siriani](https://github.com/siriani)**.
 
 ---
 
-## 🔐 Requisito 1: Matriz de Permissões por Papel (RBAC)
+## 🏗️ Arquitetura de Microsserviços Desacoplados
 
-O controle de acesso é aplicado de forma estrita no **servidor backend** (nunca confiando no frontend). O sistema implementa 3 papéis:
+O ambiente é orquestrado via **Docker Compose** com isolamento estrito de responsabilidades e rede interna privada:
 
-| Ação / Endpoint | Método | Recurso | `usuario` (Comum) | `premium` (VIP) | `admin` (Administrador) |
-| :--- | :---: | :--- | :---: | :---: | :---: |
-| **Explorar catálogo TMDB** (`/api/movies/tom-hanks`) | `GET` | Filmes Tom Hanks | ✅ Permitido | ✅ Permitido | ✅ Permitido |
-| **Listar favoritos** (`/api/favorites`) | `GET` | Meus Favoritos | ✅ Permitido | ✅ Permitido | ✅ Permitido |
-| **Adicionar favorito** (`/api/favorites`) | `POST` | Favorito | ⚠️ Limite de **5 filmes** | ✅ **Ilimitado** | ✅ **Ilimitado** |
-| **Remover favorito próprio** (`/api/favorites/:id`) | `DELETE` | Favorito Próprio | ✅ Permitido | ✅ Permitido | ✅ Permitido |
-| **Comentar em filme** (`/api/comments`) | `POST` | Comentário | ✅ Permitido | ✅ Permitido | ✅ Permitido |
-| **Apagar comentário próprio** (`/api/comments/:id`) | `DELETE` | Comentário Próprio | ✅ Permitido | ✅ Permitido | ✅ Permitido |
-| **🛡️ MODERAÇÃO: Apagar comentário de QUALQUER usuário** (`/api/comments/admin/:id`) | `DELETE` | Qualquer Comentário | ❌ **403 Forbidden** | ❌ **403 Forbidden** | ✅ **Permitido** |
-| **🛡️ Listar todos os usuários cadastrados** (`/api/auth/users`) | `GET` | Usuários do sistema | ❌ **403 Forbidden** | ❌ **403 Forbidden** | ✅ **Permitido** |
-| **🛡️ Alterar papel de usuário (Promover / Rebaixar)** (`/api/auth/users/:id/role`) | `PATCH` | Papel de Usuário | ❌ **403 Forbidden** | ❌ **403 Forbidden** | ✅ **Permitido** |
+```mermaid
+graph TD
+    Client["🌐 Usuário / Navegador"] -->|"HTTP / Porta 3000"| App["📦 app (Catálogo + Frontend Vite)"]
+    App -->|"HTTP (Rede Interna)"| Auth["🔐 auth-service"]
+    App -->|"HTTP POST /logs (Assíncrono)"| Log["📋 log-service"]
+    Auth -->|"HTTP POST /logs (Assíncrono)"| Log
+    App -->|"TCP 3306"| MariaDB[("🗄️ MariaDB (Relacional)")]
+    Auth -->|"TCP 3306"| MariaDB
+    Log -->|"TCP 6379"| Redis[("⚡ Redis Streams (logs:audit)")]
+```
 
----
-
-## 🏛️ Requisito 5: Resposta Curta — Padrão A ou Padrão B?
-
-### 1. Qual dos dois padrões o sistema utiliza hoje?
-> **O sistema utiliza o PADRÃO B (Claims embutidas no token JWT).**
-
-### 2. Onde isso está no código?
-- No momento do login no microsserviço de autenticação ([`auth-service/server.js`](auth-service/server.js)), o campo `papel` (`usuario`, `premium` ou `admin`) é assinado e gravado dentro do payload do JWT:
-  ```js
-  const token = jwt.sign(
-    { id: usuario.id, nome: usuario.nome, email: usuario.email, papel: usuario.papel },
-    JWT_SECRET,
-    { expiresIn: '7d' }
-  );
-  ```
-- No serviço de catálogo backend ([`backend/src/middlewares/auth.js`](backend/src/middlewares/auth.js)), o middleware de autenticação decodifica e verifica a assinatura do token com `jwt.verify(token, JWT_SECRET)` e extrai diretamente `req.usuarioPapel = decoded.papel`. Em seguida, o middleware `requireAdmin` ou `requireRole` valida a permissão **localmente no próprio processo, sem realizar nenhuma chamada de rede adicional ao `auth-service`**.
-
-### 3. O que mudaria no código se fosse migrado para o PADRÃO A (Enforcement Centralizado)?
-Caso o sistema adotasse o **Padrão A**:
-1. **Chamada de rede síncrona a cada requisição sensível:** O middleware do catálogo backend (`backend/src/middlewares/auth.js`) precisaria fazer uma requisição HTTP via Axios para o `auth-service` (ex: `POST http://auth-service:3000/verify-permission` passando o token e a permissão desejada como `delete:comment:any`).
-2. **Endpoint de autorização no auth-service:** O `auth-service` precisaria manter um endpoint ativo consultando o banco de dados em tempo real ou uma tabela de permissões para responder com `200 OK (permitido)` ou `403 Forbidden`.
-3. **Compensação arquitetural (Trade-offs):**
-   - *Vantagem do Padrão A:* Revogação instantânea de privilégios (se um admin rebaixar um usuário no banco, a próxima requisição dele já é bloqueada imediatamente).
-   - *Desvantagem do Padrão A:* Latência adicional de rede em todas as ações sensíveis e acoplamento crítico (se o `auth-service` cair, o catálogo para de funcionar para operações autorizadas).
-   - *Vantagem do Padrão B (atual):* Altíssima performance e desacoplamento, pois o token assinado criptograficamente é autocontido e validado instantaneamente em memória pelo catálogo.
+| Serviço | Contêiner | Porta Host | Função |
+| :--- | :--- | :---: | :--- |
+| **`app`** | `tomhanks_app` | `3000:3000` | Gateway do Catálogo, Frontend React (Vite) e BFF da aplicação |
+| **`auth-service`** | `tomhanks_auth` | *Privada* | Registro, autenticação JWT, confirmação de conta via OTP Brevo e RBAC |
+| **`log-service`** | `tomhanks_log` | *Privada* | **Microserviço de Auditoria**: Ingestão e consulta de logs |
+| **`redis`** | `tomhanks_redis` | *Privada* | Armazenamento chave-valor de altíssima vazão com **Redis Streams** (`logs:audit`) |
+| **`mariadb`** | `tomhanks_mariadb` | `127.0.0.1:3307` | Banco relacional para usuários, listas, filmes favoritos e comentários |
 
 ---
 
-## 🛠️ Requisitos 2 e 3: Ação Exclusiva de Admin & Enforcement no Backend
+## ⚡ Por que Redis Streams e NÃO o Banco Relacional (MariaDB)?
 
-### Endpoint de Moderação Exclusiva:
-- **Rota:** `DELETE /api/comments/admin/:commentId`
-- **Middleware:** `authMiddleware` + `requireAdmin`
-- **Comportamento:**
-  - Se a requisição for feita com o token de um **Usuário Comum (`usuario`)** ou **Premium (`premium`)**, o backend recusa a ação imediatamente com **HTTP 403 Forbidden**:
+Na arquitetura de sistemas distribuídos e computação em nuvem, **logs de auditoria** e **dados transacionais de negócio** possuem perfis de acesso diametralmente opostos:
+
+1. **Padrão de Acesso (Write-Heavy vs. Read-Heavy):**
+   - Logs de auditoria são gerados em praticamente qualquer interação do usuário (altíssima taxa de escrita contínua e append-only).
+   - Consultas de auditoria ocorrem esporadicamente, quase que exclusivamente por administradores ou pipelines de segurança.
+   - Escrever logs no MariaDB sobrecarregaria o banco relacional com locks de escrita, fragmentação de índices e crescimento acelerado de tabelas de transação.
+
+2. **Ausência de Necessidade de Transações Complexas (ACID):**
+   - Logs não realizam operações `JOIN`, não possuem chaves estrangeiras dinâmicas e não participam de transações distribuídas (Two-Phase Commit).
+   - Um erro no envio de log **não deve** travar ou abortar a ação legítima do usuário no catálogo.
+
+3. **Vantagens do Redis Streams (`XADD` e `XREVRANGE`):**
+   - **Performance em Memória:** Operações de append com latência sub-milissegundo (`O(1)` amortizado).
+   - **Ordenação Temporal Nativa:** Os IDs gerados pelo Redis (`<millisecondsTime>-<sequenceNumber>`) são estritamente ordenados no tempo.
+   - **Zero Alteração no MariaDB:** O schema relacional permaneceu 100% intacto.
+
+---
+
+## 🔍 Comandos Redis Streams Utilizados no `log-service`
+
+O microserviço `log-service` interage com o Redis utilizando a chave de stream `logs:audit`:
+
+### 1. Ingestão de Log: `XADD`
+Para cada evento capturado pelo catálogo ou serviço de autenticação, o microserviço executa:
+```redis
+XADD logs:audit * usuario_id "1" acao "FAVORITAR_FILME" timestamp "2026-09-08T10:30:00.000Z" ip "172.20.0.1" detalhes "{\"tmdb_movie_id\":13,\"titulo\":\"Forrest Gump\"}"
+```
+- `*` instrui o Redis a gerar automaticamente um ID baseado em milissegundos UTC.
+
+### 2. Consulta de Auditoria: `XREVRANGE`
+Para que os administradores visualizem os eventos ordenados do mais recente para o mais antigo:
+```redis
+XREVRANGE logs:audit + - COUNT 100
+```
+- `+`: Representa o ID mais recente existente no stream.
+- `-`: Representa o ID mais antigo.
+- `COUNT 100`: Retorna a janela mais recente de 100 eventos para renderização veloz na interface.
+
+---
+
+## 📋 Eventos Auditados e Estrutura dos Dados
+
+Todos os eventos contêm os campos obrigatórios: `usuario_id`, `acao`, `timestamp`, `ip` e o campo opcional enriquecido `detalhes`.
+
+| Evento (`acao`) | Origem | Descrição / Detalhes |
+| :--- | :--- | :--- |
+| `LOGIN_SUCESSO` | `auth-service` / `backend` | Login autenticado com sucesso e emissão de token JWT |
+| `LOGIN_FALHA` | `auth-service` / `backend` | Tentativa com credenciais inválidas ou conta inexistente |
+| `LOGOUT` | `backend` | Encerramento de sessão e descarte de credenciais |
+| `FAVORITAR_FILME` | `backend` | Filme adicionado aos favoritos (`tmdb_movie_id`, `titulo`) |
+| `DESFAVORITAR_FILME` | `backend` | Remoção de filme dos favoritos |
+| `CRIAR_COMENTARIO` | `backend` | Postagem de resenha da comunidade (`tmdb_movie_id`, trecho) |
+| `DELETAR_COMENTARIO_PROPRIO` | `backend` | Usuário apagou seu próprio comentário |
+| `MODERAR_COMENTARIO_ADMIN` | `backend` | **Ação Admin**: Moderação e exclusão de comentário de terceiros |
+| `ALTERAR_PAPEL_USUARIO` | `auth-service` | **Ação Admin**: Promoção ou rebaixamento de papel de usuário |
+| `EXCLUIR_USUARIO` | `auth-service` | **Ação Admin**: Exclusão definitiva de conta de usuário |
+| `🚨 BLOQUEIO_RBAC_403` | `backend` | **403 Forbidden**: Papel insuficiente para acessar endpoint sensível |
+| `🚨 BLOQUEIO_RBAC_ADMIN_403`| `backend` / `auth-service` | **403 Forbidden**: Não-administrador tentando acessar rota de admin |
+| `🚨 BLOQUEIO_LIMITE_FAVORITOS_403` | `backend` | **403 Forbidden**: Usuário Comum tentando passar de 5 favoritos |
+| `🚨 BLOQUEIO_EMAIL_NAO_VERIFICADO_403` | `backend` / `auth-service`| **403 Forbidden**: Tentativa de acesso com conta pendente de OTP |
+
+---
+
+## 🛡️ Consulta de Auditoria e Proteção RBAC
+
+A consulta de logs é restrita **exclusivamente aos administradores** via endpoint e interface web:
+
+- **Endpoint de Consulta:** `GET /api/admin/logs` (e alias `GET /api/auth/logs`)
+- **Middlewares Aplicados:** `authMiddleware` + `requireAdmin`
+- **Comportamento de Segurança:**
+  - Se um usuário comum ou VIP (`premium`) tentar requisitar o endpoint, o backend responde imediatamente com **HTTP 403 Forbidden** e **registra no próprio Redis a tentativa de violação**:
     ```json
     {
-      "error": "Acesso proibido (403 Forbidden). Seu papel de usuário não possui permissão para realizar esta ação sensível.",
-      "papelAtual": "usuario",
-      "papeisPermitidos": ["admin"]
+      "error": "Acesso permitido apenas para administradores."
     }
     ```
-  - Se a requisição for feita com o token de um **Administrador (`admin`)**, o backend executa a exclusão no MariaDB e responde com **HTTP 200 OK**:
+  - Se um administrador autenticado requisitar, recebe os logs ordenados:
     ```json
     {
-      "message": "Comentário moderado e removido com sucesso pela administração (RBAC Admin).",
-      "comentarioRemovido": { "id": 12, "autor_nome": "Alice", "texto": "..." }
+      "total": 50,
+      "stream": "logs:audit",
+      "logs": [
+        {
+          "id": "1725798234567-0",
+          "usuario_id": "1",
+          "acao": "BLOQUEIO_RBAC_ADMIN_403",
+          "timestamp": "2026-09-08T10:35:12.000Z",
+          "ip": "172.20.0.1",
+          "detalhes": { "rota": "/api/admin/logs", "motivo": "Acesso não autorizado" }
+        }
+      ]
     }
     ```
 
 ---
 
-## 📸 Requisito 4: Demonstração Prática (Roteiro de Testes)
+## 💻 Visualização no Frontend (AdminDashboard)
 
-Você pode testar diretamente pela **Interface Web** ou via **cURL / Postman**:
-
-### Teste 1: Na Interface Web
-1. Cadastre um usuário comum (ex: `alice@teste.com` com papel `Usuário Comum`).
-2. Abra qualquer filme (ex: *Forrest Gump*) e publique um comentário.
-3. Faça Logout e cadastre outro usuário comum (ex: `bob@teste.com` com papel `Usuário Comum`).
-4. Abra o mesmo filme com Bob: Bob consegue visualizar o comentário de Alice, mas **NÃO** tem acesso ao botão de moderação. Ele só pode apagar os próprios comentários.
-5. Faça Logout e entre/cadastre uma conta com papel **🛡️ Administrador** (ex: `admin@teste.com`).
-6. Abra o filme: o Administrador verá o botão vermelho **"🛡️ Moderar"** em comentários de terceiros. Ao clicar, o comentário é excluído com sucesso do banco de dados.
+No painel administrativo (`AdminDashboard.jsx`), a aba **"Auditoria (Redis Streams)"** apresenta:
+1. **Indicador de Conexão com o Stream:** Sinalizador `REDIS STREAM: logs:audit` com animação de pulso.
+2. **Filtros Rápidos por Categoria:** `Todos`, `🚨 403 Forbidden`, `🔑 Logins`, `⭐ Favoritos`, `💬 Comentários`, `🛡️ Moderação`.
+3. **Badges Estilizadas:** Cores exclusivas para bloqueios 403 (vermelho carmesim), logins válidos (verde esmeralda), moderação (roxo) e favoritos (âmbar).
+4. **Sincronização em Tempo Real:** Botão **"Atualizar Logs"** com consulta imediata ao Redis via `XREVRANGE`.
 
 ---
 
-### Teste 2: Direto via Terminal / Postman (Enforcement no Backend)
+## 🧪 Roteiro de Demonstração e Verificação
 
-#### 1. Fazer login com o Usuário Comum para pegar o token:
+### 1. Iniciar os Contêineres
 ```bash
-curl -X POST http://localhost:3000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "alice@teste.com", "senha": "1234"}'
+docker compose up -d --build
 ```
-*(Copie o token JWT retornado)*
 
-#### 2. Tentar executar a ação exclusiva de Admin com o token do Usuário Comum:
+### 2. Inspecionar Diretamente o Redis Streams via CLI
+Para inspecionar os eventos crus armazenados no Redis:
 ```bash
-curl -X DELETE http://localhost:3000/api/comments/admin/1 \
-  -H "Authorization: Bearer <TOKEN_DO_USUARIO_COMUM>"
+docker exec -it tomhanks_redis redis-cli XREVRANGE logs:audit + - COUNT 10
 ```
-> **Resultado:** Status **403 Forbidden** com a mensagem de bloqueio RBAC.
 
-#### 3. Fazer login com o Administrador:
+Para verificar o tamanho do stream e estatísticas da chave:
 ```bash
-curl -X POST http://localhost:3000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email": "admin@teste.com", "senha": "1234"}'
+docker exec -it tomhanks_redis redis-cli XLEN logs:audit
 ```
-*(Copie o token do admin)*
 
-#### 4. Executar a mesma ação com o token do Administrador:
+### 3. Testar Registro de Bloqueio 403 (Tentativa Não Autorizada)
+1. Faça login com um usuário comum e obtenha seu token.
+2. Tente acessar o endpoint de logs:
 ```bash
-curl -X DELETE http://localhost:3000/api/comments/admin/1 \
-  -H "Authorization: Bearer <TOKEN_DO_ADMIN>"
+curl -i -X GET http://localhost:3000/api/admin/logs \
+  -H "Authorization: Bearer <TOKEN_USUARIO_COMUM>"
 ```
-> **Resultado:** Status **200 OK** com confirmação da exclusão.
+> **Retorno:** `HTTP/1.1 403 Forbidden`.
+3. Consulte o Redis novamente: você verá o evento `BLOQUEIO_RBAC_ADMIN_403` gravado no stream em tempo real.
 
----
-
-## 🚀 Como Subir o Projeto
-
+### 4. Consultar Logs como Administrador
 ```bash
-docker compose up --build
+curl -X GET http://localhost:3000/api/admin/logs \
+  -H "Authorization: Bearer <TOKEN_ADMIN>"
 ```
-Acesse em: [http://localhost:3000](http://localhost:3000).
+> **Retorno:** `HTTP/1.1 200 OK` com a lista JSON dos eventos auditados.
 
 ---
 
 ## 👤 Autor e Créditos
-- Disciplina: **Computação em Nuvem / Infraestrutura**
-- Professor: **[@siriani](https://github.com/siriani)**
-- Integração de Dados: [The Movie Database (TMDB)](https://www.themoviedb.org/)
-
+- **Disciplina:** Computação em Nuvem / Infraestrutura
+- **Professor:** **[@siriani](https://github.com/siriani)**
+- **API Externa de Filmes:** [The Movie Database (TMDB)](https://www.themoviedb.org/)

@@ -1,4 +1,5 @@
 const { pool } = require('../config/database');
+const { sendLog } = require('../services/logClient');
 
 // Lista todos os comentários do usuário autenticado
 async function getAllUserComments(req, res) {
@@ -69,6 +70,12 @@ async function addComment(req, res) {
       [result.insertId]
     );
 
+    sendLog('CRIAR_COMENTARIO', req, {
+      comentario_id: result.insertId,
+      tmdb_movie_id,
+      resumo: texto.trim().substring(0, 60)
+    });
+
     return res.status(201).json({
       message: 'Comentário publicado com sucesso!',
       comentario: newComment[0]
@@ -97,6 +104,10 @@ async function deleteComment(req, res) {
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Comentário não encontrado ou não pertence a este usuário.' });
     }
+
+    sendLog('DELETAR_COMENTARIO_PROPRIO', req, {
+      comentario_id: commentId
+    });
 
     return res.json({ message: 'Comentário próprio removido com sucesso.' });
   } catch (error) {
@@ -130,6 +141,13 @@ async function deleteCommentAny(req, res) {
       'DELETE FROM comentarios WHERE id = ?',
       [commentId]
     );
+
+    sendLog('MODERAR_COMENTARIO_ADMIN', req, {
+      comentario_id: commentId,
+      autor_id: commentRows[0].usuario_id,
+      autor_nome: commentRows[0].autor_nome,
+      texto_resumo: commentRows[0].texto.substring(0, 60)
+    });
 
     return res.json({
       message: 'Comentário moderado e removido com sucesso pela administração (RBAC Admin).',

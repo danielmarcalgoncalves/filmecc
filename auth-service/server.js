@@ -20,6 +20,61 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET.trim().length < 32) {
   console.warn('[SEGURANÇA] JWT_SECRET não configurado ou menor que 32 caracteres. Utilizando segredo aleatório seguro de 70 caracteres.');
 }
 
+const LOG_SERVICE_URL = process.env.LOG_SERVICE_URL || 'http://log-service:3000';
+
+function sendLog(acao, req = null, detalhes = {}) {
+  try {
+    let usuarioId = 'anonimo';
+    let clientIp = '127.0.0.1';
+    let requestMeta = {};
+
+    if (req) {
+      if (req.usuarioId) {
+        usuarioId = String(req.usuarioId);
+      } else if (req.usuario && req.usuario.id) {
+        usuarioId = String(req.usuario.id);
+      } else if (detalhes && detalhes.usuario_id) {
+        usuarioId = String(detalhes.usuario_id);
+      }
+
+      clientIp =
+        req.headers['x-forwarded-for']?.split(',')[0].trim() ||
+        req.ip ||
+        req.socket?.remoteAddress ||
+        '127.0.0.1';
+
+      requestMeta = {
+        metodo: req.method,
+        rota: req.originalUrl || req.url
+      };
+    } else if (detalhes && detalhes.usuario_id) {
+      usuarioId = String(detalhes.usuario_id);
+    }
+
+    const payload = {
+      usuario_id: usuarioId,
+      acao: String(acao).toUpperCase(),
+      timestamp: new Date().toISOString(),
+      ip: clientIp,
+      detalhes: typeof detalhes === 'object' ? { ...requestMeta, ...detalhes } : { ...requestMeta, info: detalhes }
+    };
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2500);
+
+    fetch(`${LOG_SERVICE_URL}/logs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    })
+      .then(() => clearTimeout(timeoutId))
+      .catch(() => clearTimeout(timeoutId));
+  } catch (err) {
+    // Silencioso para não interromper fluxos
+  }
+}
+
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'mariadb',
   port: process.env.DB_PORT || 3306,
@@ -339,14 +394,21 @@ app.post('/login', async (req, res) => {
 
     const emailTrimmed = email.trim().toLowerCase();
     const [users] = await pool.query('SELECT * FROM usuarios WHERE email = ?', [emailTrimmed]);
-    if (users.length === 0) return res.status(401).json({ error: 'Credenciais inválidas.' });
+    if (users.length === 0) {
+      sendLog('LOGIN_FALHA', req, { email: emailTrimmed, motivo: 'Usuário não cadastrado' });
+      return res.status(401).json({ error: 'Credenciais inválidas.' });
+    }
 
     const usuario = users[0];
     const senhaValida = await bcrypt.compare(senha, usuario.senha_hash);
-    if (!senhaValida) return res.status(401).json({ error: 'Credenciais inválidas.' });
+    if (!senhaValida) {
+      sendLog('LOGIN_FALHA', req, { email: emailTrimmed, usuario_id: usuario.id, motivo: 'Senha incorreta' });
+      return res.status(401).json({ error: 'Credenciais inválidas.' });
+    }
 
     // Bloqueia caso o e-mail ainda não tenha sido verificado
     if (usuario.email_verificado === 0 || usuario.email_verificado === false) {
+      sendLog('BLOQUEIO_EMAIL_NAO_VERIFICADO_403', req, { email: usuario.email, usuario_id: usuario.id });
       return res.status(403).json({
         error: 'Seu e-mail ainda não foi confirmado. Digite o código de 6 dígitos enviado para sua caixa de entrada.',
         requireVerification: true,
@@ -356,6 +418,13 @@ app.post('/login', async (req, res) => {
 
     const papelFinal = usuario.papel || 'usuario';
     const token = jwt.sign({ id: usuario.id, nome: usuario.nome, email: usuario.email, papel: papelFinal }, JWT_SECRET, { expiresIn: '7d' });
+
+    sendLog('LOGIN_SUCESSO', req, {
+      usuario_id: usuario.id,
+      email: usuario.email,
+      papel: papelFinal
+    });
+
     res.json({
       message: 'Login ok!',
       token,
@@ -396,6 +465,7 @@ app.get('/users', authMiddleware, async (req, res) => {
   try {
     const [currentUser] = await pool.query('SELECT papel FROM usuarios WHERE id = ?', [req.usuarioId]);
     if (currentUser.length === 0 || currentUser[0].papel !== 'admin') {
+      sendLog('BLOQUEIO_RBAC_ADMIN_403', req, { rota: '/users', papelAtual: currentUser[0]?.papel });
       return res.status(403).json({ error: 'Acesso proibido (403 Forbidden). Apenas administradores podem listar usuários.' });
     }
 
@@ -412,6 +482,7 @@ app.patch('/users/:id/role', authMiddleware, async (req, res) => {
   try {
     const [currentUser] = await pool.query('SELECT papel FROM usuarios WHERE id = ?', [req.usuarioId]);
     if (currentUser.length === 0 || currentUser[0].papel !== 'admin') {
+      sendLog('BLOQUEIO_RBAC_ADMIN_403', req, { rota: `/users/${req.params.id}/role`, papelAtual: currentUser[0]?.papel });
       return res.status(403).json({ error: 'Acesso proibido (403 Forbidden). Apenas administradores podem alterar papéis.' });
     }
 
@@ -433,6 +504,8 @@ app.patch('/users/:id/role', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Usuário não encontrado.' });
     }
 
+    sendLog('ALTERAR_PAPEL_USUARIO', req, { targetId, novoPapel: papel });
+
     res.json({ message: `Papel do usuário ${targetId} alterado com sucesso para "${papel}".` });
   } catch (error) {
     console.error(error);
@@ -445,6 +518,7 @@ app.delete('/users/:id', authMiddleware, async (req, res) => {
   try {
     const [currentUser] = await pool.query('SELECT papel FROM usuarios WHERE id = ?', [req.usuarioId]);
     if (currentUser.length === 0 || currentUser[0].papel !== 'admin') {
+      sendLog('BLOQUEIO_RBAC_ADMIN_403', req, { rota: `/users/${req.params.id}`, papelAtual: currentUser[0]?.papel });
       return res.status(403).json({ error: 'Acesso proibido (403 Forbidden). Apenas administradores podem excluir usuários.' });
     }
 
@@ -468,6 +542,8 @@ app.delete('/users/:id', authMiddleware, async (req, res) => {
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Usuário não encontrado.' });
     }
+
+    sendLog('EXCLUIR_USUARIO', req, { targetId, targetEmail: targetUser.email, targetNome: targetUser.nome });
 
     res.json({
       message: `Usuário "${targetUser.nome}" (${targetUser.email}) com papel [${targetUser.papel}] foi excluído com sucesso.`

@@ -52,6 +52,11 @@ app.use('/api/favorites', favoritesRoutes);
 app.use('/api/comments', commentsRoutes);
 app.use('/api/lists', listsRoutes);
 
+// Rota direta de administração para Logs de Auditoria (Atividade 5 - RBAC Admin)
+const authController = require('./src/controllers/authController');
+const { authMiddleware, requireAdmin } = require('./src/middlewares/auth');
+app.get('/api/admin/logs', authMiddleware, requireAdmin, authController.getAuditLogs);
+
 // Health check para monitoramento e Portainer
 app.get('/api/health', (req, res) => {
   res.json({

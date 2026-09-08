@@ -213,6 +213,15 @@ export const api = {
 
     async listAllComments() {
       return await apiRequest('/comments/admin/all');
+    },
+
+    async getAuditLogs(params = {}) {
+      const searchParams = new URLSearchParams();
+      if (params.limit) searchParams.append('limit', params.limit);
+      if (params.acao) searchParams.append('acao', params.acao);
+      if (params.usuario_id) searchParams.append('usuario_id', params.usuario_id);
+      const query = searchParams.toString();
+      return await apiRequest(query ? `/admin/logs?${query}` : '/admin/logs');
     }
   },
 

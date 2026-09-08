@@ -24,5 +24,6 @@ router.post('/reset-password', forgotPasswordLimiter, authController.resetPasswo
 router.get('/users', authMiddleware, requireAdmin, authController.listUsers);
 router.patch('/users/:id/role', authMiddleware, requireAdmin, authController.updateUserRole);
 router.delete('/users/:id', authMiddleware, requireAdmin, authController.deleteUser);
+router.get('/logs', authMiddleware, requireAdmin, authController.getAuditLogs);
 
 module.exports = router;

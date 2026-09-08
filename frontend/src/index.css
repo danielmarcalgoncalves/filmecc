@@ -4501,4 +4501,272 @@ html, body, #root {
   }
 }
 
+/* ====================================================================
+   ESTILOS: AUDITORIA REDIS STREAMS (ATIVIDADE 5 - PROF. @siriani)
+   ==================================================================== */
+.admin-stat-icon-box.audit {
+  background: rgba(0, 224, 84, 0.12);
+  color: #00e054;
+  border: 1px solid rgba(0, 224, 84, 0.25);
+}
+
+.admin-stat-icon-box.blocked {
+  background: rgba(239, 68, 68, 0.16);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.admin-audit-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.admin-audit-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  background: rgba(20, 24, 28, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 1rem 1.4rem;
+  flex-wrap: wrap;
+  backdrop-filter: blur(16px);
+}
+
+.admin-audit-stream-info {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.admin-stream-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: rgba(0, 224, 84, 0.1);
+  border: 1px solid rgba(0, 224, 84, 0.3);
+  color: #00e054;
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  letter-spacing: 0.04em;
+}
+
+.admin-stream-pill code {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.admin-stream-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #00e054;
+  box-shadow: 0 0 8px #00e054;
+  animation: adminPulse 2s infinite;
+}
+
+.admin-stream-subtext {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+.admin-stream-subtext code {
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+.admin-audit-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.admin-audit-filter-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.audit-chip-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--color-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.audit-chip-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.audit-chip-btn.active {
+  background: #00e054;
+  color: #0c1219;
+  font-weight: 700;
+  border-color: #00e054;
+  box-shadow: 0 0 12px rgba(0, 224, 84, 0.3);
+}
+
+.btn-refresh-logs {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.95rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  background: rgba(0, 168, 224, 0.12);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-refresh-logs:hover:not(:disabled) {
+  background: rgba(0, 168, 224, 0.25);
+  color: #ffffff;
+  border-color: #38bdf8;
+}
+
+.btn-refresh-logs:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-refresh-logs svg.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Badges específicas dos Logs de Auditoria */
+.role-badge.role-audit-403 {
+  background: rgba(239, 68, 68, 0.18);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.15);
+}
+
+.admin-table tbody tr.row-audit-blocked td {
+  background-color: rgba(239, 68, 68, 0.04) !important;
+}
+
+.role-badge.role-audit-login {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.role-badge.role-audit-failed {
+  background: rgba(244, 63, 94, 0.15);
+  color: #fb7185;
+  border: 1px solid rgba(244, 63, 94, 0.35);
+}
+
+.role-badge.role-audit-logout {
+  background: rgba(100, 116, 139, 0.15);
+  color: #94a3b8;
+  border: 1px solid rgba(100, 116, 139, 0.3);
+}
+
+.role-badge.role-audit-fav {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.role-badge.role-audit-comment {
+  background: rgba(6, 182, 212, 0.15);
+  color: #22d3ee;
+  border: 1px solid rgba(6, 182, 212, 0.35);
+}
+
+.role-badge.role-audit-mod {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.35);
+}
+
+.user-id-chip {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-weight: 700;
+  font-size: 0.78rem;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+}
+
+.user-id-anon {
+  font-style: italic;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.ip-chip {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.78rem;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(0, 168, 224, 0.08);
+  border: 1px solid rgba(0, 168, 224, 0.22);
+  color: #38bdf8;
+}
+
+.log-details-wrap {
+  max-width: 480px;
+}
+
+.log-details-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.log-detail-tag {
+  font-size: 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 2px 7px;
+  border-radius: 5px;
+  color: #cbd5e1;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  white-space: nowrap;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.log-detail-tag strong {
+  color: #94a3b8;
+  margin-right: 3px;
+}
+
+.log-detail-raw {
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+
 

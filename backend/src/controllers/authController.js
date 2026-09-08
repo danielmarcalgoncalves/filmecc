@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { sendLog, getAuditLogs } = require('../services/logClient');
 
 const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://auth-service:3000';
 
@@ -58,10 +59,19 @@ async function login(req, res) {
       if (response.data.usuario) {
         response.data.usuario.role = response.data.usuario.papel || 'usuario';
       }
+      sendLog('LOGIN_SUCESSO', req, {
+        usuario_id: response.data.usuario?.id,
+        email: req.body?.email
+      });
     }
     return res.status(response.status).json(response.data);
   } catch (error) {
     if (error.response) {
+      sendLog('LOGIN_FALHA', req, {
+        email: req.body?.email,
+        status: error.response.status,
+        motivo: error.response.data?.error || 'Falha na autenticação'
+      });
       return res.status(error.response.status).json(error.response.data);
     }
     return res.status(500).json({ error: 'Erro interno ao contatar o serviço de autenticação.' });
@@ -69,6 +79,9 @@ async function login(req, res) {
 }
 
 async function logout(req, res) {
+  sendLog('LOGOUT', req, {
+    usuario_id: req.usuarioId || req.usuario?.id || 'sessao_encerrada'
+  });
   clearAuthCookie(res);
   return res.json({ message: 'Sessão finalizada com sucesso.' });
 }
@@ -202,6 +215,17 @@ async function deleteUser(req, res) {
   }
 }
 
+async function getAuditLogsController(req, res) {
+  try {
+    const { limit, acao, usuario_id } = req.query;
+    const logs = await getAuditLogs({ limit, acao, usuario_id });
+    return res.json(logs);
+  } catch (error) {
+    console.error('[getAuditLogsController Error]:', error.message);
+    return res.status(500).json({ error: error.message || 'Erro ao consultar logs de auditoria.' });
+  }
+}
+
 module.exports = {
   register,
   verifyCode,
@@ -213,6 +237,7 @@ module.exports = {
   resetPassword,
   listUsers,
   updateUserRole,
-  deleteUser
+  deleteUser,
+  getAuditLogs: getAuditLogsController
 };
 

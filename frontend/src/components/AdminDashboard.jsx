@@ -2,11 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 
 export default function AdminDashboard({ user, onBack, onShowToast }) {
-  const [activeSubTab, setActiveSubTab] = useState('users'); // 'users' | 'comments'
+  const [activeSubTab, setActiveSubTab] = useState('users'); // 'users' | 'comments' | 'logs'
   const [usersList, setUsersList] = useState([]);
   const [commentsList, setCommentsList] = useState([]);
+  const [logsList, setLogsList] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [logsLoading, setLogsLoading] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
+  const [logFilterAction, setLogFilterAction] = useState('TODOS');
   const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
@@ -16,9 +19,10 @@ export default function AdminDashboard({ user, onBack, onShowToast }) {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [usersRes, commentsRes] = await Promise.allSettled([
+      const [usersRes, commentsRes, logsRes] = await Promise.allSettled([
         api.admin.listUsers(),
-        api.admin.listAllComments()
+        api.admin.listAllComments(),
+        api.admin.getAuditLogs({ limit: 100 })
       ]);
 
       if (usersRes.status === 'fulfilled') {
@@ -30,10 +34,27 @@ export default function AdminDashboard({ user, onBack, onShowToast }) {
       if (commentsRes.status === 'fulfilled') {
         setCommentsList(commentsRes.value.comentarios || []);
       }
+
+      if (logsRes.status === 'fulfilled') {
+        setLogsList(logsRes.value.logs || []);
+      }
     } catch (err) {
       onShowToast(err.message || 'Erro ao carregar dados do painel administrativo.', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRefreshLogs = async () => {
+    setLogsLoading(true);
+    try {
+      const res = await api.admin.getAuditLogs({ limit: 100 });
+      setLogsList(res.logs || []);
+      onShowToast('Logs de auditoria atualizados via Redis Streams (XREVRANGE)!', 'success');
+    } catch (err) {
+      onShowToast(err.message || 'Erro ao atualizar logs.', 'error');
+    } finally {
+      setLogsLoading(false);
     }
   };
 
@@ -44,6 +65,8 @@ export default function AdminDashboard({ user, onBack, onShowToast }) {
         prev.map((u) => (u.id === userId ? { ...u, papel: novoPapel } : u))
       );
       onShowToast(`Papel do usuário atualizado para "${novoPapel}".`, 'success');
+      // Atualiza os logs para refletir a alteração
+      handleRefreshLogs();
     } catch (err) {
       onShowToast(err.message || 'Erro ao atualizar papel do usuário.', 'error');
     }
@@ -66,6 +89,7 @@ export default function AdminDashboard({ user, onBack, onShowToast }) {
       await api.admin.deleteUser(targetUser.id);
       setUsersList((prev) => prev.filter((u) => u.id !== targetUser.id));
       onShowToast(`Usuário "${targetUser.nome}" (${roleLabel}) excluído com sucesso!`, 'success');
+      handleRefreshLogs();
 
       if (isSelf) {
         setTimeout(() => {
@@ -87,6 +111,7 @@ export default function AdminDashboard({ user, onBack, onShowToast }) {
       await api.comments.deleteAny(commentId);
       setCommentsList((prev) => prev.filter((c) => c.id !== commentId));
       onShowToast('Comentário moderado e removido com sucesso!', 'success');
+      handleRefreshLogs();
     } catch (err) {
       onShowToast(err.message || 'Erro ao remover comentário.', 'error');
     }
@@ -97,7 +122,9 @@ export default function AdminDashboard({ user, onBack, onShowToast }) {
     admins: usersList.filter((u) => u.papel === 'admin').length,
     premiums: usersList.filter((u) => u.papel === 'premium').length,
     regular: usersList.filter((u) => !u.papel || u.papel === 'usuario').length,
-    comments: commentsList.length
+    comments: commentsList.length,
+    auditLogs: logsList.length,
+    blocked403: logsList.filter((l) => l.acao && (l.acao.includes('403') || l.acao.includes('BLOQUEIO'))).length
   };
 
   const filteredUsers = usersList.filter(
@@ -113,6 +140,116 @@ export default function AdminDashboard({ user, onBack, onShowToast }) {
       c.autor_nome?.toLowerCase().includes(searchFilter.toLowerCase()) ||
       c.autor_email?.toLowerCase().includes(searchFilter.toLowerCase())
   );
+
+  const filteredLogs = logsList.filter((l) => {
+    const term = searchFilter.toLowerCase();
+    const matchesSearch =
+      !term ||
+      l.acao?.toLowerCase().includes(term) ||
+      String(l.usuario_id).toLowerCase().includes(term) ||
+      l.ip?.toLowerCase().includes(term) ||
+      (typeof l.detalhes === 'object'
+        ? JSON.stringify(l.detalhes).toLowerCase().includes(term)
+        : String(l.detalhes).toLowerCase().includes(term));
+
+    if (!matchesSearch) return false;
+
+    if (logFilterAction === '403') {
+      return l.acao && (l.acao.includes('403') || l.acao.includes('BLOQUEIO'));
+    }
+    if (logFilterAction === 'LOGIN') {
+      return l.acao && (l.acao.includes('LOGIN') || l.acao === 'LOGOUT');
+    }
+    if (logFilterAction === 'FAVORITOS') {
+      return l.acao && l.acao.includes('FAVORIT');
+    }
+    if (logFilterAction === 'MODERACAO') {
+      return l.acao && (l.acao.includes('MODERAR') || l.acao.includes('PAPEL') || l.acao.includes('EXCLUIR'));
+    }
+    if (logFilterAction === 'COMENTARIOS') {
+      return l.acao && l.acao.includes('COMENTARIO');
+    }
+    return true;
+  });
+
+  const formatLogActionBadge = (acao) => {
+    const upper = (acao || '').toUpperCase();
+    if (upper.includes('403') || upper.includes('BLOQUEIO')) {
+      return (
+        <span className="role-badge role-audit-403" title="Tentativa não autorizada bloqueada por RBAC (403 Forbidden)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          <span>{upper}</span>
+        </span>
+      );
+    }
+    if (upper === 'LOGIN_SUCESSO') {
+      return (
+        <span className="role-badge role-audit-login">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          <span>LOGIN SUCESSO</span>
+        </span>
+      );
+    }
+    if (upper === 'LOGIN_FALHA') {
+      return (
+        <span className="role-badge role-audit-failed">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+          <span>LOGIN FALHA</span>
+        </span>
+      );
+    }
+    if (upper === 'LOGOUT') {
+      return (
+        <span className="role-badge role-audit-logout">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+          <span>LOGOUT</span>
+        </span>
+      );
+    }
+    if (upper.includes('FAVORIT')) {
+      return (
+        <span className="role-badge role-audit-fav">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+          </svg>
+          <span>{upper}</span>
+        </span>
+      );
+    }
+    if (upper.includes('COMENTARIO')) {
+      return (
+        <span className="role-badge role-audit-comment">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <span>{upper}</span>
+        </span>
+      );
+    }
+    if (upper.includes('MODERAR') || upper.includes('PAPEL') || upper.includes('EXCLUIR')) {
+      return (
+        <span className="role-badge role-audit-mod">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+          </svg>
+          <span>{upper}</span>
+        </span>
+      );
+    }
+    return <span className="role-badge role-usuario">{upper}</span>;
+  };
 
   return (
     <div className="admin-dashboard-container">
@@ -130,11 +267,11 @@ export default function AdminDashboard({ user, onBack, onShowToast }) {
           <div className="admin-title-wrap">
             <div className="admin-badge-tag">
               <span className="admin-badge-dot"></span>
-              <span>PAINEL DE CONTROLE RBAC</span>
+              <span>PAINEL DE CONTROLE RBAC &amp; AUDITORIA REDIS</span>
             </div>
-            <h2 className="admin-page-title">Centro Administrativo &amp; Moderação</h2>
+            <h2 className="admin-page-title">Centro Administrativo, Moderação &amp; Auditoria</h2>
             <p className="admin-page-subtitle">
-              Gerencie usuários, controle níveis de acesso (Admin, Premium, Comum), exclua contas e modere comentários em tempo real.
+              Controle níveis de acesso (Admin, Premium, Comum), modere comentários e audite eventos em tempo real gravados no Redis Streams (XADD / XREVRANGE).
             </p>
           </div>
         </div>
@@ -182,27 +319,44 @@ export default function AdminDashboard({ user, onBack, onShowToast }) {
         </div>
 
         <div className="admin-stat-card">
-          <div className="admin-stat-icon-box regular">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-              <circle cx="12" cy="7" r="4"></circle>
-            </svg>
-          </div>
-          <div className="admin-stat-info">
-            <span className="admin-stat-label">Usuários Comuns</span>
-            <span className="admin-stat-value">{stats.regular}</span>
-          </div>
-        </div>
-
-        <div className="admin-stat-card">
           <div className="admin-stat-icon-box comments">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
             </svg>
           </div>
           <div className="admin-stat-info">
-            <span className="admin-stat-label">Comentários Totais</span>
+            <span className="admin-stat-label">Comentários</span>
             <span className="admin-stat-value">{stats.comments}</span>
+          </div>
+        </div>
+
+        {/* STAT CARD: LOGS DE AUDITORIA NO REDIS */}
+        <div className="admin-stat-card">
+          <div className="admin-stat-icon-box audit">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="4 17 10 11 4 5"></polyline>
+              <line x1="12" y1="19" x2="20" y2="19"></line>
+            </svg>
+          </div>
+          <div className="admin-stat-info">
+            <span className="admin-stat-label">Eventos no Redis</span>
+            <span className="admin-stat-value">{stats.auditLogs}</span>
+          </div>
+        </div>
+
+        {/* STAT CARD: BLOQUEIOS 403 (RBAC) */}
+        <div className="admin-stat-card">
+          <div className="admin-stat-icon-box blocked">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+          </div>
+          <div className="admin-stat-info">
+            <span className="admin-stat-label">Bloqueios 403</span>
+            <span className="admin-stat-value" style={{ color: stats.blocked403 > 0 ? '#f87171' : '#ffffff' }}>
+              {stats.blocked403}
+            </span>
           </div>
         </div>
       </div>
@@ -232,6 +386,21 @@ export default function AdminDashboard({ user, onBack, onShowToast }) {
             <span>Moderação de Comentários</span>
             <span className="tab-count">{commentsList.length}</span>
           </button>
+
+          {/* NOVA ABA: LOGS DE AUDITORIA (REDIS STREAMS) */}
+          <button
+            className={`tab-btn ${activeSubTab === 'logs' ? 'active' : ''}`}
+            onClick={() => { setActiveSubTab('logs'); setSearchFilter(''); }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="4 17 10 11 4 5"></polyline>
+              <line x1="12" y1="19" x2="20" y2="19"></line>
+            </svg>
+            <span>Auditoria (Redis Streams)</span>
+            <span className="tab-count" style={{ background: 'rgba(0, 224, 84, 0.2)', color: '#00e054' }}>
+              {logsList.length}
+            </span>
+          </button>
         </div>
 
         <div className="search-box">
@@ -242,7 +411,13 @@ export default function AdminDashboard({ user, onBack, onShowToast }) {
           <input
             type="text"
             className="search-input"
-            placeholder={`Pesquisar ${activeSubTab === 'users' ? 'por nome, e-mail ou papel...' : 'por texto, autor ou e-mail...'}`}
+            placeholder={
+              activeSubTab === 'users'
+                ? 'Pesquisar por nome, e-mail ou papel...'
+                : activeSubTab === 'comments'
+                ? 'Pesquisar por texto, autor ou e-mail...'
+                : 'Filtrar logs por ação, usuário, IP ou detalhes...'
+            }
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
           />
@@ -359,7 +534,7 @@ export default function AdminDashboard({ user, onBack, onShowToast }) {
                             </select>
                           </div>
 
-                          {/* Botão de Excluir Usuário (ADM, PREMIUM ou Comum) */}
+                          {/* Botão de Excluir Usuário */}
                           <button
                             className="btn-admin-delete-user"
                             onClick={() => handleDeleteUser(u)}
@@ -383,7 +558,7 @@ export default function AdminDashboard({ user, onBack, onShowToast }) {
             </tbody>
           </table>
         </div>
-      ) : (
+      ) : activeSubTab === 'comments' ? (
         /* LISTA DE TODOS OS COMENTÁRIOS */
         <div className="admin-comments-grid">
           {filteredComments.length === 0 ? (
@@ -444,6 +619,149 @@ export default function AdminDashboard({ user, onBack, onShowToast }) {
               </div>
             ))
           )}
+        </div>
+      ) : (
+        /* ABA: LOGS DE AUDITORIA (REDIS STREAMS) */
+        <div className="admin-audit-section">
+          {/* BARRA SUPERIOR DOS LOGS */}
+          <div className="admin-audit-toolbar">
+            <div className="admin-audit-stream-info">
+              <span className="admin-stream-pill">
+                <span className="admin-stream-dot"></span>
+                <span>REDIS STREAM: <code>logs:audit</code></span>
+              </span>
+              <span className="admin-stream-subtext">
+                Persistência em alta vazão com comandos <code>XADD</code> e <code>XREVRANGE</code>
+              </span>
+            </div>
+
+            <div className="admin-audit-actions">
+              <div className="admin-audit-filter-chips">
+                {[
+                  { id: 'TODOS', label: 'Todos' },
+                  { id: '403', label: '🚨 403 Forbidden' },
+                  { id: 'LOGIN', label: '🔑 Logins' },
+                  { id: 'FAVORITOS', label: '⭐ Favoritos' },
+                  { id: 'COMENTARIOS', label: '💬 Comentários' },
+                  { id: 'MODERACAO', label: '🛡️ Moderação' }
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    className={`audit-chip-btn ${logFilterAction === f.id ? 'active' : ''}`}
+                    onClick={() => setLogFilterAction(f.id)}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                className="btn-refresh-logs"
+                onClick={handleRefreshLogs}
+                disabled={logsLoading}
+                title="Sincronizar eventos recentes do Redis Streams"
+              >
+                <svg
+                  className={logsLoading ? 'spinning' : ''}
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <polyline points="23 4 23 10 17 10"></polyline>
+                  <polyline points="1 20 1 14 7 14"></polyline>
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+                <span>{logsLoading ? 'Atualizando...' : 'Atualizar Logs'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* TABELA DE LOGS DE AUDITORIA */}
+          <div className="admin-table-container">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '130px' }}>Stream ID</th>
+                  <th style={{ width: '150px' }}>Data / Hora</th>
+                  <th style={{ width: '210px' }}>Ação de Auditoria</th>
+                  <th style={{ width: '130px' }}>Usuário ID</th>
+                  <th style={{ width: '130px' }}>IP Origem</th>
+                  <th>Detalhes do Evento</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredLogs.length === 0 ? (
+                  <tr>
+                    <td colSpan="6" className="admin-table-empty">
+                      <div className="empty-icon">⚡</div>
+                      <p>
+                        {logsList.length === 0
+                          ? 'Nenhum log registrado ainda no Redis Stream. Execute ações no catálogo para gerar auditoria!'
+                          : 'Nenhum evento corresponde ao filtro selecionado.'}
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredLogs.map((l) => {
+                    const is403 = l.acao && (l.acao.includes('403') || l.acao.includes('BLOQUEIO'));
+
+                    return (
+                      <tr key={l.id} className={is403 ? 'row-audit-blocked' : ''}>
+                        <td className="cell-id">
+                          <span className="id-chip" title={`ID Redis Stream: ${l.id}`}>
+                            {l.id}
+                          </span>
+                        </td>
+                        <td className="cell-date">
+                          <span className="date-text">
+                            {new Date(l.timestamp).toLocaleDateString('pt-BR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit'
+                            })}
+                          </span>
+                        </td>
+                        <td className="cell-action-badge">
+                          {formatLogActionBadge(l.acao)}
+                        </td>
+                        <td className="cell-user-id">
+                          {l.usuario_id === 'anonimo' ? (
+                            <span className="user-id-anon">anônimo</span>
+                          ) : (
+                            <span className="user-id-chip">#{l.usuario_id}</span>
+                          )}
+                        </td>
+                        <td className="cell-ip">
+                          <span className="ip-chip">{l.ip || '127.0.0.1'}</span>
+                        </td>
+                        <td className="cell-details">
+                          <div className="log-details-wrap">
+                            {typeof l.detalhes === 'object' && l.detalhes !== null ? (
+                              <div className="log-details-grid">
+                                {Object.entries(l.detalhes).map(([key, val]) => (
+                                  <span key={key} className="log-detail-tag">
+                                    <strong>{key}:</strong>{' '}
+                                    {typeof val === 'object' ? JSON.stringify(val) : String(val)}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="log-detail-raw">{String(l.detalhes || '-')}</span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
