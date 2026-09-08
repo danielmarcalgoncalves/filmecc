@@ -84,8 +84,8 @@ services:
     restart: unless-stopped
     command: server /data --console-address ":9001"
     ports:
-      - "9000:9000"   # API S3 (usada pelo backend Node.js)
-      - "9001:9001"   # Console web visual
+      - "${MINIO_API_PORT:-9010}:9000"   # API S3 mapeada para porta 9010 externa (evita conflito com a porta 9000 do Portainer)
+      - "${MINIO_CONSOLE_PORT:-9011}:9001" # Console web do MinIO na porta 9011 externa
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}

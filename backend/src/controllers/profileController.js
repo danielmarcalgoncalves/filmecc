@@ -1,4 +1,4 @@
-﻿/**
+/**
  * profileController.js
  * Gerencia o perfil do usuario autenticado.
  *
@@ -14,7 +14,7 @@
  */
 
 const { pool } = require('../config/database');
-const { uploadFile, deleteFile } = require('../services/minioClient');
+const { uploadFile, getFileStream, deleteFile } = require('../services/minioClient');
 const { sendLog } = require('../services/logClient');
 
 /**
@@ -113,13 +113,9 @@ async function uploadAvatar(req, res) {
     const [rows] = await pool.query('SELECT foto_url FROM usuarios WHERE id = ?', [req.usuarioId]);
     const urlAntiga = rows[0]?.foto_url;
     if (urlAntiga) {
-      // Extrai o objectName a partir da URL publica
-      // Formato: http://localhost:9000/{bucket}/{objectName}
-      const partes = urlAntiga.split('/');
-      const bucketIndex = partes.findIndex(p => p === (process.env.MINIO_BUCKET || 'perfil-fotos'));
-      if (bucketIndex !== -1) {
-        const objectNameAntigo = partes.slice(bucketIndex + 1).join('/');
-        await deleteFile(objectNameAntigo);
+      const match = urlAntiga.match(/usuario-\d+-\d+\.[a-zA-Z0-9]+/);
+      if (match) {
+        await deleteFile('avatar/' + match[0]);
       }
     }
 
@@ -141,4 +137,34 @@ async function uploadAvatar(req, res) {
   }
 }
 
-module.exports = { getProfile, updateProfile, uploadAvatar };
+/**
+ * GET /api/profile/avatar/:filename
+ * Serve a imagem diretamente do MinIO via streaming.
+ * Público para permitir exibição em tags <img> no navegador.
+ */
+async function getAvatar(req, res) {
+  try {
+    const filename = req.params.filename;
+    if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+      return res.status(400).send('Nome de arquivo invalido.');
+    }
+
+    const objectName = 'avatar/' + filename;
+    const stream = await getFileStream(objectName);
+
+    if (filename.endsWith('.png')) {
+      res.setHeader('Content-Type', 'image/png');
+    } else if (filename.endsWith('.webp')) {
+      res.setHeader('Content-Type', 'image/webp');
+    } else {
+      res.setHeader('Content-Type', 'image/jpeg');
+    }
+
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    stream.pipe(res);
+  } catch (err) {
+    return res.status(404).send('Foto de perfil nao encontrada.');
+  }
+}
+
+module.exports = { getProfile, updateProfile, uploadAvatar, getAvatar };

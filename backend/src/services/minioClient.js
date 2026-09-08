@@ -58,12 +58,18 @@ async function ensureBucket() {
 
 async function uploadFile(buffer, filename, mimetype, usuarioId) {
   const ext = filename.split('.').pop().toLowerCase();
-  const objectName = 'avatar/usuario-' + usuarioId + '-' + Date.now() + '.' + ext;
+  const rawFileName = 'usuario-' + usuarioId + '-' + Date.now() + '.' + ext;
+  const objectName = 'avatar/' + rawFileName;
   await minioClient.putObject(BUCKET, objectName, buffer, buffer.length, {
     'Content-Type': mimetype
   });
-  const url = PUBLIC_URL + '/' + BUCKET + '/' + objectName;
+  // Rota pública do backend que faz streaming do MinIO de forma transparente
+  const url = '/api/profile/avatar/' + rawFileName;
   return { objectName, url };
+}
+
+async function getFileStream(objectName) {
+  return await minioClient.getObject(BUCKET, objectName);
 }
 
 async function deleteFile(objectName) {
@@ -75,4 +81,4 @@ async function deleteFile(objectName) {
   }
 }
 
-module.exports = { minioClient, ensureBucket, uploadFile, deleteFile, BUCKET, PUBLIC_URL };
+module.exports = { minioClient, ensureBucket, uploadFile, getFileStream, deleteFile, BUCKET, PUBLIC_URL };

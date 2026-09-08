@@ -1,4 +1,4 @@
-﻿/**
+/**
  * profileRoutes.js
  * Rotas de perfil de usuario — protegidas por authMiddleware (JWT + DB).
  *
@@ -11,7 +11,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const { authMiddleware } = require('../middlewares/auth');
-const { getProfile, updateProfile, uploadAvatar } = require('../controllers/profileController');
+const { getProfile, updateProfile, uploadAvatar, getAvatar } = require('../controllers/profileController');
 
 // Multer: guarda o arquivo na memoria (Buffer) sem gravar no disco
 const upload = multer({
@@ -19,13 +19,16 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 } // 10 MB (validacao de 5 MB no controller)
 });
 
-// GET  /api/profile        — retorna dados do perfil do usuario logado
+// GET  /api/profile/avatar/:filename — streaming público da foto salva no MinIO
+router.get('/avatar/:filename', getAvatar);
+
+// GET  /api/profile                  — retorna dados do perfil do usuario logado
 router.get('/', authMiddleware, getProfile);
 
-// PUT  /api/profile        — atualiza nome e/ou bio
+// PUT  /api/profile                  — atualiza nome e/ou bio
 router.put('/', authMiddleware, updateProfile);
 
-// POST /api/profile/avatar — upload de foto (campo multipart: "avatar")
+// POST /api/profile/avatar           — upload de foto (campo multipart: "avatar")
 router.post('/avatar', authMiddleware, upload.single('avatar'), uploadAvatar);
 
 module.exports = router;
