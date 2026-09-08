@@ -26,7 +26,9 @@ router.get('/avatar/:filename', getAvatar);
 router.get('/', authMiddleware, getProfile);
 
 // PUT  /api/profile                  — atualiza nome e/ou bio
+// PUT  /api/profile/:id              — tentativa de IDOR explicitamente bloqueada
 router.put('/', authMiddleware, updateProfile);
+router.put('/:id', authMiddleware, updateProfile);
 
 // POST /api/profile/avatar           — upload de foto (campo multipart: "avatar")
 router.post('/avatar', authMiddleware, upload.single('avatar'), uploadAvatar);

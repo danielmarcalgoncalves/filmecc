@@ -44,6 +44,39 @@ async function getProfile(req, res) {
  */
 async function updateProfile(req, res) {
   try {
+    // 🛡️ Defesa Anti-IDOR (Insecure Direct Object Reference):
+    // 1. Bloqueia se tentar passar outro ID via parâmetro de rota (ex: PUT /api/profile/99)
+    const targetParamId = req.params.id ? Number(req.params.id) : null;
+    if (targetParamId && targetParamId !== req.usuarioId) {
+      sendLog('BLOQUEIO_IDOR_403', req, {
+        motivo: 'Tentativa de alteração não autorizada de perfil de outro usuário via URL',
+        usuarioAutenticado: req.usuarioId,
+        usuarioAlvo: targetParamId
+      });
+      return res.status(403).json({
+        error: 'Acesso negado (403 Forbidden - Anti-IDOR). Você não possui permissão para editar o perfil de outro usuário.',
+        codigo: 'IDOR_BLOCK',
+        usuarioAutenticado: req.usuarioId,
+        tentativaId: targetParamId
+      });
+    }
+
+    // 2. Bloqueia se tentar forjar usuario_id ou id no corpo JSON da requisição
+    const targetBodyId = req.body.usuario_id || req.body.id;
+    if (targetBodyId && Number(targetBodyId) !== req.usuarioId) {
+      sendLog('BLOQUEIO_IDOR_403', req, {
+        motivo: 'Tentativa de alteração não autorizada de perfil de outro usuário via corpo JSON',
+        usuarioAutenticado: req.usuarioId,
+        usuarioAlvo: Number(targetBodyId)
+      });
+      return res.status(403).json({
+        error: 'Acesso negado (403 Forbidden - Anti-IDOR). Você não possui permissão para alterar o perfil de outro usuário.',
+        codigo: 'IDOR_BLOCK',
+        usuarioAutenticado: req.usuarioId,
+        tentativaId: Number(targetBodyId)
+      });
+    }
+
     const { nome, bio } = req.body;
 
     if (!nome && bio === undefined) {

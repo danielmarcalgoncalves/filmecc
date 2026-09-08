@@ -19,6 +19,7 @@ graph TD
     App -->|"TCP 3306"| MariaDB[("🗄️ MariaDB (Relacional)")]
     Auth -->|"TCP 3306"| MariaDB
     Log -->|"TCP 6379"| Redis[("⚡ Redis Streams (logs:audit)")]
+    App -->|"S3 API / Porta 9000"| MinIO[("🪣 MinIO (Object Storage S3)")]
 ```
 
 | Serviço | Contêiner | Porta Host | Função |
@@ -27,6 +28,7 @@ graph TD
 | **`auth-service`** | `tomhanks_auth` | *Privada* | Registro, autenticação JWT, confirmação de conta via OTP Brevo e RBAC |
 | **`log-service`** | `tomhanks_log` | *Privada* | **Microserviço de Auditoria**: Ingestão e consulta de logs |
 | **`redis`** | `tomhanks_redis` | *Privada* | Armazenamento chave-valor de altíssima vazão com **Redis Streams** (`logs:audit`) |
+| **`minio`** | `tomhanks_minio` | `9010:9000` / `9011:9001` | **Object Storage S3-compatível**: Armazenamento seguro de fotos de perfil |
 | **`mariadb`** | `tomhanks_mariadb` | `127.0.0.1:3307` | Banco relacional para usuários, listas, filmes favoritos e comentários |
 
 ---
@@ -173,6 +175,40 @@ curl -X GET http://localhost:3000/api/admin/logs \
   -H "Authorization: Bearer <TOKEN_ADMIN>"
 ```
 > **Retorno:** `HTTP/1.1 200 OK` com a lista JSON dos eventos auditados.
+
+---
+
+## 🪣 Armazenamento de Fotos de Perfil com MinIO (Object Storage S3)
+
+### Por que usar MinIO (Object Storage) em vez de gravar imagens no MariaDB (BLOB)?
+1. **Evita Inchaço do Banco Relacional:** Salvar arquivos binários (`BLOB`) no MariaDB causaria fragmentação do InnoDB Buffer Pool, backups gigantescos e lentidão em operações de `SELECT` ou `JOIN`.
+2. **Escalabilidade Horizontal:** O MinIO opera sob a API S3, permitindo migração direta para AWS S3, Cloudflare R2 ou Google Cloud Storage sem alterar uma única linha de regra de negócio.
+3. **Desacoplamento:** O MariaDB armazena apenas a referência (`avatar_url`), enquanto os arquivos binários são servidos pelo gateway de streaming da aplicação (`/api/profile/avatar/:filename`).
+
+---
+
+## 🛡️ Proteção Anti-IDOR (Insecure Direct Object Reference)
+
+Para evitar que um usuário mal-intencionado edite o perfil de outro modificando o ID na URL ou no corpo da requisição:
+- O backend extrai a identidade real diretamente do **Token JWT assinado** (`req.usuarioId`).
+- Se o usuário tentar enviar `PUT /api/profile/:id` ou `{ usuario_id: outro_id }`, o sistema detecta a divergência e rejeita imediatamente com **`HTTP 403 Forbidden`**:
+
+```json
+{
+  "error": "Acesso negado: você não tem autorização para editar o perfil de outro usuário (Proteção Anti-IDOR)."
+}
+```
+Além disso, a tentativa de ataque é registrada automaticamente no **Redis Streams** (`BLOQUEIO_IDOR_403`).
+
+### Como Demonstrar a Tentativa Recusada (Anti-IDOR):
+Execute no terminal ou no DevTools Console (estando logado com o usuário ID 1 e tentando alterar o perfil do usuário 99):
+```bash
+curl -i -X PUT http://localhost:3000/api/profile/99 \
+  -H "Authorization: Bearer <SEU_TOKEN_JWT>" \
+  -H "Content-Type: application/json" \
+  -d '{"nome": "Tentativa Hacker"}'
+```
+> **Resultado:** `HTTP/1.1 403 Forbidden` com código `IDOR_BLOCK`.
 
 ---
 
