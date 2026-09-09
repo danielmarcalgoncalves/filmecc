@@ -342,7 +342,9 @@ app.post('/verify-code', rateLimit(10 * 60 * 1000, 8, 'Muitas tentativas de veri
         nome: usuario.nome,
         email: usuario.email,
         papel: usuario.papel || 'usuario',
-        role: usuario.papel || 'usuario'
+        role: usuario.papel || 'usuario',
+        foto_url: usuario.foto_url || null,
+        bio: usuario.bio || null
       }
     });
   } catch (error) {
@@ -433,7 +435,9 @@ app.post('/login', async (req, res) => {
         nome: usuario.nome,
         email: usuario.email,
         papel: papelFinal,
-        role: papelFinal
+        role: papelFinal,
+        foto_url: usuario.foto_url || null,
+        bio: usuario.bio || null
       }
     });
   } catch (error) {
@@ -444,7 +448,7 @@ app.post('/login', async (req, res) => {
 
 app.get('/me', authMiddleware, async (req, res) => {
   try {
-    const [users] = await pool.query('SELECT id, nome, email, papel, criado_em FROM usuarios WHERE id = ?', [req.usuarioId]);
+    const [users] = await pool.query('SELECT id, nome, email, papel, foto_url, bio, criado_em FROM usuarios WHERE id = ?', [req.usuarioId]);
     if (users.length === 0) return res.status(404).json({ error: 'Usuário não encontrado.' });
     const usuario = users[0];
     const papelFinal = usuario.papel || 'usuario';
@@ -452,7 +456,9 @@ app.get('/me', authMiddleware, async (req, res) => {
       usuario: {
         ...usuario,
         papel: papelFinal,
-        role: papelFinal
+        role: papelFinal,
+        foto_url: usuario.foto_url || null,
+        bio: usuario.bio || null
       }
     });
   } catch (error) {

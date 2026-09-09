@@ -291,6 +291,7 @@ html, body, #root {
   width: 32px;
   height: 32px;
   border-radius: 50%;
+  overflow: hidden;
   background: var(--color-bg-tertiary);
   border: 2px solid var(--color-border);
   display: flex;
@@ -299,6 +300,8 @@ html, body, #root {
   font-size: 0.8rem;
   font-weight: 700;
   color: var(--color-text-primary);
+  flex-shrink: 0;
+  position: relative;
 }
 
 .user-display-name {
@@ -5709,6 +5712,19 @@ html, body, #root {
 
 .profile-avatar-large:hover .profile-avatar-overlay {
   opacity: 1;
+}
+
+.profile-avatar-uploading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #fff;
+  z-index: 5;
 }
 
 .profile-preview-actions {

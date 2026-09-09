@@ -121,10 +121,17 @@ export default function Navbar({
                       src={user.foto_url}
                       alt={`Foto de ${user.nome}`}
                       className="user-avatar-photo"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        if (e.target.nextElementSibling) {
+                          e.target.nextElementSibling.style.display = 'flex';
+                        }
+                      }}
                     />
-                  ) : (
-                    user.nome ? user.nome.charAt(0).toUpperCase() : 'U'
-                  )}
+                  ) : null}
+                  <span style={{ display: user.foto_url ? 'none' : 'flex' }}>
+                    {user.nome ? user.nome.charAt(0).toUpperCase() : 'U'}
+                  </span>
                 </div>
                 <span className="user-display-name">{user.nome}</span>
                 <span className={`role-tag role-${user.papel || 'usuario'}`}>

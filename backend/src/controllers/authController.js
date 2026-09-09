@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { pool } = require('../config/database');
 const { sendLog, getAuditLogs } = require('../services/logClient');
 
 const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://auth-service:3000';
@@ -58,6 +59,15 @@ async function login(req, res) {
       setAuthCookie(res, response.data.token);
       if (response.data.usuario) {
         response.data.usuario.role = response.data.usuario.papel || 'usuario';
+        if (!response.data.usuario.foto_url) {
+          try {
+            const [rows] = await pool.query('SELECT foto_url, bio FROM usuarios WHERE id = ?', [response.data.usuario.id]);
+            if (rows.length > 0) {
+              response.data.usuario.foto_url = rows[0].foto_url || null;
+              response.data.usuario.bio = rows[0].bio || null;
+            }
+          } catch (e) {}
+        }
       }
       sendLog('LOGIN_SUCESSO', req, {
         usuario_id: response.data.usuario?.id,
@@ -98,6 +108,8 @@ async function me(req, res) {
     });
     if (response.data && response.data.usuario) {
       response.data.usuario.role = response.data.usuario.papel || 'usuario';
+      response.data.usuario.foto_url = response.data.usuario.foto_url || req.usuario?.foto_url || null;
+      response.data.usuario.bio = response.data.usuario.bio || req.usuario?.bio || null;
     }
     return res.status(response.status).json(response.data);
   } catch (error) {

@@ -74,9 +74,9 @@ const publicPath = path.join(__dirname, 'public');
 const distPath = path.join(__dirname, '..', 'frontend', 'dist');
 
 let staticPath = null;
-if (fs.existsSync(publicPath)) {
+if (fs.existsSync(path.join(publicPath, 'index.html'))) {
   staticPath = publicPath;
-} else if (fs.existsSync(distPath)) {
+} else if (fs.existsSync(path.join(distPath, 'index.html'))) {
   staticPath = distPath;
 }
 

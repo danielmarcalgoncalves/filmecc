@@ -117,7 +117,13 @@ export default function ProfilePage({
     }
 
     setSelectedFile(file);
-    setPreviewUrl(URL.createObjectURL(file));
+
+    // FileReader garante base64 instantâneo e estável antes e durante o upload
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setPreviewUrl(event.target.result);
+    };
+    reader.readAsDataURL(file);
   }
 
   // Upload da foto para o MinIO
@@ -126,13 +132,15 @@ export default function ProfilePage({
     setUploading(true);
     try {
       const data = await api.profile.uploadAvatar(selectedFile);
-      showToast('Foto de perfil atualizada!', 'success');
-      setProfile((prev) => ({ ...prev, foto_url: data.foto_url }));
-      setPreviewUrl(null);
+      showToast('Foto de perfil atualizada com sucesso!', 'success');
+      // Invalidação de cache via timestamp para visualização imediata
+      const newFotoUrl = data.foto_url ? `${data.foto_url}?t=${Date.now()}` : data.foto_url;
+      setProfile((prev) => ({ ...prev, foto_url: newFotoUrl }));
       setSelectedFile(null);
-      if (onUpdateUser) onUpdateUser({ foto_url: data.foto_url });
+      setPreviewUrl(null);
+      if (onUpdateUser) onUpdateUser({ foto_url: newFotoUrl });
     } catch (err) {
-      showToast(err.message || 'Erro ao fazer upload.', 'error');
+      showToast(err.message || 'Erro ao fazer upload da foto.', 'error');
     } finally {
       setUploading(false);
     }
@@ -144,7 +152,7 @@ export default function ProfilePage({
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
-  // Salva nome e bio
+  // Salva nome e bio (e faz upload automático da foto caso tenha sido selecionada)
   async function handleSaveProfile(e) {
     e.preventDefault();
     if (!nome.trim()) {
@@ -153,10 +161,30 @@ export default function ProfilePage({
     }
     setSaving(true);
     try {
+      let novaFotoUrl = profile?.foto_url;
+      // Se houver arquivo selecionado ainda não confirmado, faz o upload automaticamente agora
+      if (selectedFile) {
+        const uploadRes = await api.profile.uploadAvatar(selectedFile);
+        novaFotoUrl = uploadRes.foto_url ? `${uploadRes.foto_url}?t=${Date.now()}` : uploadRes.foto_url;
+        setSelectedFile(null);
+        setPreviewUrl(null);
+      }
+
       const data = await api.profile.update({ nome: nome.trim(), bio: bio.trim() });
       showToast('Perfil salvo com sucesso!', 'success');
-      setProfile((prev) => ({ ...prev, nome: data.usuario.nome, bio: data.usuario.bio }));
-      if (onUpdateUser) onUpdateUser({ nome: data.usuario.nome, bio: data.usuario.bio });
+      setProfile((prev) => ({
+        ...prev,
+        nome: data.usuario.nome,
+        bio: data.usuario.bio,
+        foto_url: novaFotoUrl || prev.foto_url
+      }));
+      if (onUpdateUser) {
+        onUpdateUser({
+          nome: data.usuario.nome,
+          bio: data.usuario.bio,
+          foto_url: novaFotoUrl || profile?.foto_url
+        });
+      }
       setIsEditing(false); // Retorna para a visualização principal
     } catch (err) {
       showToast(err.message || 'Erro ao salvar perfil.', 'error');
@@ -165,7 +193,7 @@ export default function ProfilePage({
     }
   }
 
-  const avatarSrc = previewUrl || profile?.foto_url;
+  const avatarSrc = previewUrl || profile?.foto_url || user?.foto_url;
   const inicial = (profile?.nome || user?.nome || 'U').charAt(0).toUpperCase();
 
   if (loading) {
@@ -226,23 +254,44 @@ export default function ProfilePage({
             <div className="profile-avatar-edit-box">
               <div className="profile-avatar-large profile-avatar-interactive">
                 {avatarSrc ? (
-                  <img src={avatarSrc} alt="Foto de perfil" className="profile-avatar-img" />
-                ) : (
-                  <span className="profile-avatar-initial">{inicial}</span>
-                )}
-
-                <button
-                  type="button"
-                  className="profile-avatar-overlay"
-                  onClick={() => fileInputRef.current?.click()}
-                  title="Selecionar nova foto de perfil"
+                  <img
+                    src={avatarSrc}
+                    alt="Foto de perfil"
+                    className="profile-avatar-img"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      if (e.target.nextElementSibling) {
+                        e.target.nextElementSibling.style.display = 'flex';
+                      }
+                    }}
+                  />
+                ) : null}
+                <span
+                  className="profile-avatar-initial"
+                  style={{ display: avatarSrc ? 'none' : 'flex' }}
                 >
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                    <circle cx="12" cy="13" r="4" />
-                  </svg>
-                  <span>Alterar Foto</span>
-                </button>
+                  {inicial}
+                </span>
+
+                {uploading ? (
+                  <div className="profile-avatar-uploading-overlay">
+                    <span className="btn-spinner-sm"></span>
+                    <span style={{ fontSize: '11px', fontWeight: 600 }}>Enviando...</span>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="profile-avatar-overlay"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Selecionar nova foto de perfil"
+                  >
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                      <circle cx="12" cy="13" r="4" />
+                    </svg>
+                    <span>Alterar Foto</span>
+                  </button>
+                )}
               </div>
 
               <input
@@ -379,11 +428,25 @@ export default function ProfilePage({
             <div className="profile-hero-main">
               <div className="profile-avatar-display-wrapper">
                 <div className="profile-avatar-large profile-avatar-glow">
-                  {profile?.foto_url ? (
-                    <img src={profile.foto_url} alt={profile.nome} className="profile-avatar-img" />
-                  ) : (
-                    <span className="profile-avatar-initial">{inicial}</span>
-                  )}
+                  {profile?.foto_url || user?.foto_url ? (
+                    <img
+                      src={profile?.foto_url || user?.foto_url}
+                      alt={profile?.nome || user?.nome}
+                      className="profile-avatar-img"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        if (e.target.nextElementSibling) {
+                          e.target.nextElementSibling.style.display = 'flex';
+                        }
+                      }}
+                    />
+                  ) : null}
+                  <span
+                    className="profile-avatar-initial"
+                    style={{ display: (profile?.foto_url || user?.foto_url) ? 'none' : 'flex' }}
+                  >
+                    {inicial}
+                  </span>
                 </div>
               </div>
 
