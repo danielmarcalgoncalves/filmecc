@@ -1,8 +1,9 @@
-# 🎬 Catálogo de Filmes — Tom Hanks (Atividade 5 · Microserviço de Auditoria com Redis Streams)
+# 🎬 Catálogo de Filmes — Tom Hanks (ISW055 · Fatec Pompeia)
 
-Aplicação web de alta disponibilidade para exploração da filmografia de **Tom Hanks**, com integração ao vivo da API externa do **TMDB (The Movie Database)**, controle de permissões por papel (**RBAC**), persistência relacional no **MariaDB** e **Microserviço Dedicado de Auditoria e Logs** alimentado por **Redis Streams**.
-
-> 🎓 Projeto desenvolvido para a disciplina de **Computação em Nuvem / Infraestrutura** lecionada pelo professor **[@siriani](https://github.com/siriani)**.
+> 📄 **Avaliação P1 (Relatório Bimestral de Atividades):**
+> Acesse o relatório completo em PDF: [**P1_ISW055_Daniel_Marcal.pdf**](docs/P1_ISW055_Daniel_Marcal.pdf)
+>
+> 🎓 Projeto desenvolvido por **Daniel Marçal Gonçalves** para a disciplina de **Introdução à Computação em Nuvem (ISW055)** lecionada pelo professor **[@siriani](https://github.com/siriani)**.
 
 ---
 
