@@ -37,14 +37,13 @@ async function addFavorite(req, res) {
 
     // Regra RBAC para limite de favoritos:
     // - Usuário Comum: limite máximo de 5 favoritos
-    // - Usuário Premium: limite máximo de 20 favoritos
+    // - Usuário Premium: ILIMITADO (benefício do Plano Premium — Atividade 7)
     // - Admin: ilimitado
     let limite = null;
     if (papelUsuario === 'usuario') {
       limite = 5;
-    } else if (papelUsuario === 'premium') {
-      limite = 20;
     }
+    // Premium e Admin não possuem limite (limite permanece null = ilimitado)
 
     if (limite !== null) {
       const [favCountRows] = await pool.query(
@@ -60,19 +59,19 @@ async function addFavorite(req, res) {
       );
 
       if (totalFavoritos >= limite && alreadyFav.length === 0) {
-        const nomePlano = papelUsuario === 'usuario' ? 'Usuário Comum' : 'Usuário Premium';
         sendLog('BLOQUEIO_LIMITE_FAVORITOS_403', req, {
-          motivo: `Limite de ${limite} favoritos atingido para ${nomePlano}`,
+          motivo: `Limite de ${limite} favoritos atingido para Usuário Comum`,
           tmdb_movie_id,
           titulo,
           papelAtual: papelUsuario,
           limite
         });
         return res.status(403).json({
-          error: `Limite de ${limite} filmes favoritos atingido para o plano ${nomePlano}.`,
+          error: `Limite de ${limite} filmes favoritos atingido. Assine o Plano Premium para ter favoritos ilimitados!`,
           isLimitReached: true,
           papelAtual: papelUsuario,
-          limite
+          limite,
+          upgradeToPremium: true
         });
       }
     }

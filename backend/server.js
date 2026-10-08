@@ -12,6 +12,7 @@ const favoritesRoutes = require('./src/routes/favoritesRoutes');
 const commentsRoutes = require('./src/routes/commentsRoutes');
 const listsRoutes = require('./src/routes/listsRoutes');
 const profileRoutes = require('./src/routes/profileRoutes');
+const stripeRoutes = require('./src/routes/stripeRoutes');
 
 let cookieParser;
 try {
@@ -36,6 +37,11 @@ const app = express();
 
 // Headers de segurança e proteção HTTP
 app.use(securityHeaders);
+
+// ⚠️ IMPORTANTE: O webhook do Stripe DEVE ser registrado ANTES do express.json() global.
+// A rota /api/stripe/webhook usa express.raw() internamente para preservar o corpo
+// original da requisição, necessário para validação criptográfica da assinatura do Stripe.
+app.use('/api/stripe', stripeRoutes);
 
 // Configuração de CORS (permitindo envio de cookies/credentials) e Parsers
 app.use(cors({

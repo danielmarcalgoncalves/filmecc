@@ -12,7 +12,8 @@ export default function FavoriteLimitModal({
   role = 'usuario',
   movieTitle = '',
   onClose,
-  onGoToProfile
+  onGoToProfile,
+  onGoToPremium
 }) {
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -99,7 +100,18 @@ export default function FavoriteLimitModal({
             Entendi, Fechar
           </button>
 
-          {onGoToProfile && (
+          {isCommon && onGoToPremium ? (
+            <button
+              type="button"
+              className="btn-fav-limit-primary btn-fav-limit-premium"
+              onClick={() => {
+                onClose();
+                onGoToPremium();
+              }}
+            >
+              <span>👑 Assinar Plano Premium</span>
+            </button>
+          ) : onGoToProfile ? (
             <button
               type="button"
               className="btn-fav-limit-primary"
@@ -114,7 +126,7 @@ export default function FavoriteLimitModal({
               </svg>
               <span>Gerenciar Meus Favoritos</span>
             </button>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

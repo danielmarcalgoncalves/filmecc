@@ -22,6 +22,7 @@ export default function ProfilePage({
   onUpdateUser,
   showToast,
   onBack,
+  onOpenPremium,
   favorites = [],
   allMovies = [],
   onSelectMovie,
@@ -495,6 +496,37 @@ export default function ProfilePage({
                   )}
                 </div>
               </div>
+            </div>
+
+            {/* Banner de Plano Premium / Upgrade */}
+            <div className="profile-premium-banner">
+              {profile?.papel === 'premium' ? (
+                <div className="profile-premium-banner-active">
+                  <div className="profile-premium-banner-info">
+                    <span className="profile-premium-banner-badge">👑 PLANO PREMIUM ATIVO</span>
+                    <h3>Sua assinatura está ativa!</h3>
+                    <p>Você possui acesso ilimitado a favoritos e recursos exclusivos.</p>
+                  </div>
+                  {onOpenPremium && (
+                    <button type="button" className="btn-profile-premium-manage" onClick={onOpenPremium}>
+                      Ver Detalhes do Plano
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="profile-premium-banner-cta">
+                  <div className="profile-premium-banner-info">
+                    <span className="profile-premium-banner-tag">💡 ELEVE SUA EXPERIÊNCIA</span>
+                    <h3>Desbloqueie Favoritos Ilimitados</h3>
+                    <p>Seu plano gratuito possui limite de 5 favoritos. Assine o <strong>Plano Premium por R$ 9,90/mês</strong>.</p>
+                  </div>
+                  {onOpenPremium && (
+                    <button type="button" className="btn-profile-premium-upgrade" onClick={onOpenPremium}>
+                      <span>👑 Conhecer Plano Premium</span>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </section>
 

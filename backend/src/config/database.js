@@ -143,6 +143,38 @@ async function initDb() {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
     `);
 
+    // Criação da tabela de assinaturas Stripe (Plano Premium — Atividade 7)
+    // Armazena apenas identificadores e metadados operacionais — NUNCA dados de cartão.
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS stripe_subscriptions (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        usuario_id INT NOT NULL,
+        stripe_customer_id VARCHAR(255) NULL,
+        stripe_subscription_id VARCHAR(255) NULL,
+        status VARCHAR(50) DEFAULT 'inactive',
+        periodo_inicio DATETIME NULL,
+        periodo_fim DATETIME NULL,
+        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+        UNIQUE KEY uk_usuario_stripe (usuario_id),
+        INDEX idx_stripe_customer (stripe_customer_id),
+        INDEX idx_stripe_subscription (stripe_subscription_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    // Tabela para idempotência de webhooks: impede processamento duplicado do mesmo evento
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS stripe_webhook_events (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        stripe_event_id VARCHAR(255) UNIQUE NOT NULL,
+        tipo VARCHAR(100) NOT NULL,
+        processado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_event_id (stripe_event_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    console.log('[Database] Tabelas Stripe verificadas e prontas para uso.');
     connection.release();
     console.log('[Database] Tabelas verificadas e prontas para uso.');
   } catch (error) {

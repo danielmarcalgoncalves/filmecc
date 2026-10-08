@@ -213,7 +213,62 @@ curl -i -X PUT http://localhost:3000/api/profile/99 \
 
 ---
 
+## 💳 Plano Premium com Stripe (Modo de Teste)
+
+O projeto inclui a funcionalidade de **Assinatura do Plano Premium** com cobrança simulada via **Stripe Checkout** em modo de teste (`test mode`), mantendo conformidade com os regulamentos de segurança PCI-DSS.
+
+### 🌟 Benefícios do Plano Premium vs Plano Gratuito
+
+| Recurso | 🎬 Plano Gratuito | 👑 Plano Premium (R$ 9,90/mês) |
+| :--- | :---: | :---: |
+| **Limite de Favoritos** | Máximo 5 filmes | **Ilimitado** |
+| **Criação de Listas** | Sim | **Ilimitado** |
+| **Comentários & Avaliações** | Sim | **Selo exclusivo no perfil** |
+| **Selo de Perfil** | `Membro` | `👑 Premium` |
+
+---
+
+### 🏗️ Arquitetura e Fluxo de Pagamento com Stripe
+
+1. **Sessão de Checkout**: O usuário autenticado clica em **"Assinar Plano Premium"**, solicitando ao backend (`POST /api/stripe/checkout`). O backend cria uma sessão no Stripe Checkout via SDK oficial (`stripe.checkout.sessions.create`) com a referência do usuário (`client_reference_id = usuarioId`).
+2. **Checkout Seguro**: O usuário é redirecionado para a página hospedada pelo Stripe (`checkout.stripe.com`). **Nenhum dado de cartão passa pelos nossos servidores.**
+3. **Confirmação Assíncrona via Webhook**: O Stripe dispara um evento `checkout.session.completed` ou `invoice.paid` para o endpoint `POST /api/stripe/webhook`.
+4. **Validação Cryptográfica de Assinatura**: O webhook valida o header `stripe-signature` usando o segredo `STRIPE_WEBHOOK_SECRET` com `stripe.webhooks.constructEvent()`.
+5. **Idempotência**: O ID do evento do Stripe (`evt_...`) é registrado na tabela `stripe_webhook_events`. Eventos duplicados são ignorados com retorno `200 OK`.
+6. **Atualização de Papel (RBAC)**: Ao confirmar o pagamento, o backend atualiza a coluna `papel` na tabela `usuarios` para `'premium'`, liberando instantaneamente a cota ilimitada de favoritos.
+7. **Cancelamento/Expiração**: Eventos `customer.subscription.deleted` ou `invoice.payment_failed` rebaixam o papel do usuário de volta para `'usuario'`.
+
+---
+
+### 💳 Cartões de Teste Oficiais para Avaliação
+
+Ao testar a aplicação na tela de checkout do Stripe, utilize os dados de teste abaixo (qualquer data futura e qualquer CVC de 3 dígitos):
+
+* **Sucesso na Assinatura (Pagamento Aprovado)**: `4242 4242 4242 4242`
+* **Cartão Recusado (Falha de Pagamento)**: `4000 0027 6000 3184`
+* **Saldo Insuficiente**: `4000 0002 0000 0005`
+
+---
+
+### 🔧 Como Configurar os Webhooks do Stripe em Ambiente Local
+
+Para testar os webhooks localmente utilizando o Stripe CLI:
+
+1. **Instalar o Stripe CLI**: [stripe.com/docs/stripe-cli](https://stripe.com/docs/stripe-cli)
+2. **Autenticar na sua conta Stripe**:
+   ```bash
+   stripe login
+   ```
+3. **Encaminhar webhooks para a aplicação local**:
+   ```bash
+   stripe listen --forward-to localhost:3000/api/stripe/webhook
+   ```
+4. Copie o segredo informado (`whsec_...`) e defina na variável `STRIPE_WEBHOOK_SECRET` no seu arquivo `.env`.
+
+---
+
 ## 👤 Autor e Créditos
 - **Disciplina:** Computação em Nuvem / Infraestrutura
 - **Professor:** **[@siriani](https://github.com/siriani)**
 - **API Externa de Filmes:** [The Movie Database (TMDB)](https://www.themoviedb.org/)
+

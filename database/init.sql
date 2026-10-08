@@ -50,3 +50,24 @@ CREATE TABLE IF NOT EXISTS comentarios (
   criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS stripe_subscriptions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  usuario_id INT NOT NULL,
+  stripe_customer_id VARCHAR(255) NOT NULL,
+  stripe_subscription_id VARCHAR(255) NOT NULL,
+  status VARCHAR(50) NOT NULL DEFAULT 'active',
+  periodo_inicio TIMESTAMP NULL,
+  periodo_fim TIMESTAMP NULL,
+  criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+  UNIQUE KEY uk_usuario_stripe (usuario_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS stripe_webhook_events (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  stripe_event_id VARCHAR(255) NOT NULL UNIQUE,
+  tipo VARCHAR(100) NOT NULL,
+  processado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

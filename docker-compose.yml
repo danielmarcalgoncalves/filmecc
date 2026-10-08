@@ -25,6 +25,11 @@ services:
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin123}
       - MINIO_BUCKET=${MINIO_BUCKET:-perfil-fotos}
       - MINIO_PUBLIC_URL=${MINIO_PUBLIC_URL:-http://localhost:9000}
+      # Stripe — Pagamentos e Assinatura Premium (Modo de Teste)
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_PRICE_ID=${STRIPE_PRICE_ID}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - APP_URL=${APP_URL:-http://localhost:3000}
     depends_on:
       - mariadb
       - auth-service

@@ -338,6 +338,26 @@ export const api = {
       }
       return data;
     }
+  },
+
+  stripe: {
+    /**
+     * Cria uma Checkout Session no Stripe para o Plano Premium.
+     * Retorna { url, sessionId } — o frontend redireciona para url.
+     */
+    async createCheckout() {
+      return await apiRequest('/stripe/checkout', {
+        method: 'POST'
+      });
+    },
+
+    /**
+     * Consulta o status atual da assinatura do usuário logado.
+     * Retorna { isPremium, papel, subscription: { id, status, periodoFim, ... } }
+     */
+    async getStatus() {
+      return await apiRequest('/stripe/status');
+    }
   }
 };
 

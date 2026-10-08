@@ -11,7 +11,8 @@ export default function Navbar({
   searchQuery = '',
   setSearchQuery,
   onHome,
-  onOpenProfile
+  onOpenProfile,
+  onOpenPremium
 }) {
   return (
     <header className="cinefilia-navbar">
@@ -108,6 +109,20 @@ export default function Navbar({
                 </button>
               )}
 
+              {/* Botão Premium — visível para usuários comuns */}
+              {user.papel === 'usuario' && (
+                <button
+                  type="button"
+                  id="btn-navbar-premium"
+                  className={`btn-premium-pill ${currentView === 'premium' ? 'active' : ''}`}
+                  onClick={() => onOpenPremium && onOpenPremium()}
+                  title="Conheça o Plano Premium"
+                >
+                  <span>👑</span>
+                  <span>Premium</span>
+                </button>
+              )}
+
               {/* Avatar e Perfil — clicavel para abrir a pagina de perfil */}
               <button
                 type="button"
@@ -135,7 +150,7 @@ export default function Navbar({
                 </div>
                 <span className="user-display-name">{user.nome}</span>
                 <span className={`role-tag role-${user.papel || 'usuario'}`}>
-                  {user.papel === 'admin' ? 'Admin' : user.papel === 'premium' ? 'Premium' : 'Membro'}
+                  {user.papel === 'admin' ? 'Admin' : user.papel === 'premium' ? '👑 Premium' : 'Membro'}
                 </span>
               </button>
 
@@ -156,6 +171,16 @@ export default function Navbar({
             </>
           ) : (
             <div className="guest-nav-group">
+              <button
+                type="button"
+                id="btn-navbar-premium-guest"
+                className="btn-premium-pill"
+                onClick={() => onOpenPremium && onOpenPremium()}
+                title="Conheça o Plano Premium"
+              >
+                <span>👑</span>
+                <span>Premium</span>
+              </button>
               <button
                 type="button"
                 className="btn-nav-login"

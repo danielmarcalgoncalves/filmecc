@@ -11,6 +11,7 @@ import ResetPasswordModal from './components/ResetPasswordModal';
 import AdminDashboard from './components/AdminDashboard';
 import ListsView from './components/ListsView';
 import ProfilePage from './components/ProfilePage';
+import PremiumPage from './components/PremiumPage';
 import Toast from './components/Toast';
 import { api } from './services/api';
 
@@ -21,7 +22,12 @@ export default function App() {
   // estritamente da resposta do servidor (/api/auth/me), ignorando o localStorage.
   const [user, setUser] = useState(null);
   const [authChecking, setAuthChecking] = useState(true);
-  const [currentView, setCurrentView] = useState('catalog'); // 'catalog' | 'admin'
+  // Detecta retorno de checkout do Stripe via URL params (?checkout=success ou ?checkout=cancelled)
+  const [currentView, setCurrentView] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('checkout')) return 'premium';
+    return 'catalog'; // 'catalog' | 'admin' | 'profile' | 'premium'
+  });
   const [movies, setMovies] = useState([]);
   const [favorites, setFavorites] = useState([]);
   const [comments, setComments] = useState([]);
@@ -537,6 +543,7 @@ export default function App() {
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         onOpenProfile={() => setCurrentView('profile')}
+        onOpenPremium={() => setCurrentView('premium')}
         onHome={() => {
           setActiveTab('all');
           setActiveGenre('Todos');
@@ -554,6 +561,7 @@ export default function App() {
             showToast={showToast}
             onUpdateUser={(updates) => setUser(prev => ({ ...prev, ...updates }))}
             onBack={() => setCurrentView('catalog')}
+            onOpenPremium={() => setCurrentView('premium')}
             favorites={favorites}
             allMovies={movies}
             onSelectMovie={setSelectedMovie}
@@ -567,6 +575,20 @@ export default function App() {
             watchlistMovieIds={watchlistMovieIds}
             onToggleFavorite={handleToggleFavorite}
             onToggleWatchlist={handleToggleWatchlist}
+            onOpenPremium={() => setCurrentView('premium')}
+          />
+        </main>
+      ) : currentView === 'premium' ? (
+        <main className="cinefilia-main-body pt-16">
+          <PremiumPage
+            user={user}
+            showToast={showToast}
+            onUpdateUser={(updates) => setUser(prev => ({ ...prev, ...updates }))}
+            onBack={() => {
+              // Limpa os params de checkout da URL ao voltar
+              window.history.replaceState({}, document.title, window.location.pathname);
+              setCurrentView('catalog');
+            }}
           />
         </main>
       ) : currentView === 'admin' && user?.papel === 'admin' ? (
@@ -984,6 +1006,11 @@ export default function App() {
         onGoToProfile={() => {
           setFavoriteLimitModal((prev) => ({ ...prev, isOpen: false }));
           setCurrentView('profile');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onGoToPremium={() => {
+          setFavoriteLimitModal((prev) => ({ ...prev, isOpen: false }));
+          setCurrentView('premium');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
       />
