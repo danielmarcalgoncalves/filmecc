@@ -20,13 +20,13 @@
 const { pool } = require('../config/database');
 const { sendLog } = require('../services/logClient');
 
-// Configurações centralizadas do plano (evita valores espalhados pelo código)
-const STRIPE_CONFIG = {
-  // Preço mensal do Plano Premium (configurar via variável de ambiente)
-  PRICE_ID: process.env.STRIPE_PRICE_ID || null,
-  // URL base da aplicação para redirecionamentos após checkout
-  APP_URL: process.env.APP_URL || 'http://localhost:3000',
-};
+// Configurações centralizadas do plano (dinâmicas para cada requisição)
+function getStripeConfig() {
+  return {
+    PRICE_ID: process.env.STRIPE_PRICE_ID || null,
+    APP_URL: process.env.APP_URL || 'http://localhost:3000',
+  };
+}
 
 // Inicializa o SDK do Stripe com a chave secreta de TESTE
 function getStripe() {
@@ -49,8 +49,9 @@ function getStripe() {
 async function createCheckoutSession(req, res) {
   try {
     const stripe = getStripe();
+    const config = getStripeConfig();
 
-    if (!STRIPE_CONFIG.PRICE_ID) {
+    if (!config.PRICE_ID) {
       return res.status(503).json({
         error: 'O serviço de pagamento ainda não está configurado. Configure STRIPE_PRICE_ID.',
         configuracao: 'Crie um produto "Plano Premium" no painel Stripe em modo de teste e adicione o ID do preço (price_...) à variável de ambiente STRIPE_PRICE_ID.'
@@ -113,7 +114,7 @@ async function createCheckoutSession(req, res) {
       customer: customerId,
       line_items: [
         {
-          price: STRIPE_CONFIG.PRICE_ID,
+          price: config.PRICE_ID,
           quantity: 1
         }
       ],
@@ -125,8 +126,8 @@ async function createCheckoutSession(req, res) {
         usuario_nome: usuario.nome
       },
       // URLs de retorno após o checkout (hospedadas pelo Stripe)
-      success_url: `${STRIPE_CONFIG.APP_URL}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${STRIPE_CONFIG.APP_URL}/?checkout=cancelled`,
+      success_url: `${config.APP_URL}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${config.APP_URL}/?checkout=cancelled`,
       // Configurações regionais
       locale: 'pt-BR',
       // Permite código de promoção (útil para testes)
@@ -136,7 +137,7 @@ async function createCheckoutSession(req, res) {
     sendLog('STRIPE_CHECKOUT_CRIADO', req, {
       usuario_id: usuarioId,
       session_id: session.id,
-      price_id: STRIPE_CONFIG.PRICE_ID
+      price_id: config.PRICE_ID
     });
 
     return res.json({
